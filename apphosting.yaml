@@ -1,0 +1,39 @@
+# Firebase App Hosting 런타임 설정
+# 시크릿(ANTHROPIC_API_KEY/ADMIN_PASSWORD/ADMIN_SECRET)은 Secret Manager에 등록 후
+# 아래 secret 참조로 주입된다:
+#   firebase apphosting:secrets:set ANTHROPIC_API_KEY
+#   firebase apphosting:secrets:set ADMIN_PASSWORD
+#   firebase apphosting:secrets:set ADMIN_SECRET
+# FIREBASE_STORAGE_BUCKET 값은 자신의 버킷명으로 교체(예: my-proj.appspot.com).
+
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  maxInstances: 3
+  minInstances: 0
+
+env:
+  - variable: FIREBASE_STORAGE_BUCKET
+    value: YOUR_FIREBASE_PROJECT_ID.appspot.com
+    availability:
+      - RUNTIME
+
+  - variable: CLAUDE_MODEL
+    value: claude-opus-4-8
+    availability:
+      - RUNTIME
+
+  - variable: ANTHROPIC_API_KEY
+    secret: ANTHROPIC_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: ADMIN_PASSWORD
+    secret: ADMIN_PASSWORD
+    availability:
+      - RUNTIME
+
+  - variable: ADMIN_SECRET
+    secret: ADMIN_SECRET
+    availability:
+      - RUNTIME

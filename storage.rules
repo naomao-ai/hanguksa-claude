@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// 문항 이미지(question-images/)는 공개 읽기, 쓰기는 서버(Admin SDK)만.
+// 그 외 경로는 전면 차단.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /question-images/{file=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /{all=**} {
+      allow read, write: if false;
+    }
+  }
+}

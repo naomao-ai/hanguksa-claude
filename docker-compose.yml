@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin1234}
+      - ADMIN_SECRET=${ADMIN_SECRET:-}
+      - SEED_ON_START=${SEED_ON_START:-0}
+    volumes:
+      - hanguksa-db:/app/prisma # SQLite 영속화
+    restart: unless-stopped
+
+volumes:
+  hanguksa-db:

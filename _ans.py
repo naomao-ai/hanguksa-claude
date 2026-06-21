@@ -1,0 +1,11 @@
+import fitz, os
+dl = os.path.expanduser("~/Downloads")
+ans = os.path.join(dl, "78회 한국사_답지(심화).pdf")
+out = os.path.abspath("_pdf78_hi")
+os.makedirs(out, exist_ok=True)
+d = fitz.open(ans)
+mat = fitz.Matrix(220 / 72, 220 / 72)
+pix = d[0].get_pixmap(matrix=mat)
+p = os.path.join(out, "answer.png")
+pix.save(p)
+print(p, pix.width, "x", pix.height)
