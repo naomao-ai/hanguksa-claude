@@ -42,3 +42,8 @@ env:
     secret: ADMIN_SECRET
     availability:
       - RUNTIME
+
+  - variable: FIREBASE_SERVICE_ACCOUNT
+    secret: FIREBASE_SERVICE_ACCOUNT
+    availability:
+      - RUNTIME
