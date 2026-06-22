@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   const topic = sp.get("topic") || undefined;
   const round = sp.get("round");
   const q = sp.get("q")?.trim() || undefined;
+  const factId = sp.get("factId") || undefined;
   const random = sp.get("random") === "1";
   const limit = Math.min(parseInt(sp.get("limit") || "100", 10), 500);
 
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
     topic,
     round: round ? parseInt(round, 10) : undefined,
     q,
+    factId,
     random,
     limit,
   });

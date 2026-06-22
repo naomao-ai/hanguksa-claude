@@ -9,6 +9,7 @@ export interface QuestionFilter {
   topic?: string;
   round?: string;
   q?: string;
+  factId?: string;
   limit?: number;
   random?: boolean;
 }
@@ -21,6 +22,7 @@ export async function fetchQuestions(f: QuestionFilter = {}, signal?: AbortSigna
   if (f.topic) sp.set("topic", f.topic);
   if (f.round) sp.set("round", f.round);
   if (f.q) sp.set("q", f.q);
+  if (f.factId) sp.set("factId", f.factId);
   if (f.limit) sp.set("limit", String(f.limit));
   if (f.random) sp.set("random", "1");
   const res = await fetch(`/api/questions?${sp.toString()}`, { signal });
