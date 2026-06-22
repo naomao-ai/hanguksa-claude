@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { ERA_KEYS } from "@/lib/domain";
 import { isAdmin } from "@/lib/admin";
 import { getQuestions, getQuestionsByIds, createQuestion } from "@/lib/firestore";
+import { linkOneById } from "@/lib/ai/link-facts";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,9 @@ export async function POST(req: NextRequest) {
     examYear: body.examYear ? Number(body.examYear) : null,
     number: body.number ? Number(body.number) : null,
   });
+
+  // 백그라운드 연결 (응답 비차단). 실패는 무시(관리자 일괄로 보완 가능).
+  after(() => linkOneById(question.id).catch(() => {}));
 
   return NextResponse.json({ question });
 }

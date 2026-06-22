@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { ERA_KEYS } from "@/lib/domain";
 import { AnalyzeResultSchema } from "@/lib/ai/schema";
 import { isAdmin } from "@/lib/admin";
 import { createQuestions, type NewQuestion } from "@/lib/firestore";
+import { linkAllQuestions } from "@/lib/ai/link-facts";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -44,5 +45,9 @@ export async function POST(req: NextRequest) {
   }));
 
   const created = await createQuestions(items);
+
+  // 방금 추가된(미연결) 문제들을 백그라운드로 연결. 응답 비차단.
+  after(() => linkAllQuestions("missing").catch(() => {}));
+
   return NextResponse.json({ created });
 }
