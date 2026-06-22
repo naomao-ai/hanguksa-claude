@@ -43,6 +43,7 @@ function docToQuestion(id: string, d: FirebaseFirestore.DocumentData): QuestionD
     qType: d.qType ?? "기타",
     difficulty: d.difficulty ?? null,
     source: d.source ?? "MANUAL",
+    factIds: Array.isArray(d.factIds) ? d.factIds : [],
     choices: [...choices]
       .sort((a, b) => a.order - b.order)
       .map((c, i) => ({ id: String(i), order: c.order, text: c.text })),
@@ -58,6 +59,7 @@ export interface QuestionFilter {
   q?: string;
   random?: boolean;
   limit?: number;
+  factId?: string;
 }
 
 function sortQuestions(rows: QuestionDTO[]): QuestionDTO[] {
@@ -83,6 +85,7 @@ export async function getQuestions(f: QuestionFilter = {}): Promise<QuestionDTO[
   if (f.era) rows = rows.filter((r) => r.era === f.era);
   if (f.qType) rows = rows.filter((r) => r.qType === f.qType);
   if (f.round != null) rows = rows.filter((r) => r.examRound === f.round);
+  if (f.factId) rows = rows.filter((r) => r.factIds.includes(f.factId!));
   if (f.topic) rows = rows.filter((r) => r.topics.some((t) => t.includes(f.topic!)));
   if (f.q) {
     const q = f.q;
@@ -129,6 +132,7 @@ export interface NewQuestion {
   examYear?: number | null;
   number?: number | null;
   source?: string;
+  factIds?: string[];
 }
 
 async function buildQuestionDoc(id: string, q: NewQuestion, defaultSource: string) {
@@ -151,6 +155,7 @@ async function buildQuestionDoc(id: string, q: NewQuestion, defaultSource: strin
     difficulty: q.difficulty ?? null,
     source: q.source ?? defaultSource,
     choices: q.choices.map((text, order) => ({ order, text })),
+    factIds: Array.isArray(q.factIds) ? q.factIds : [],
     createdAt: Timestamp.now(),
   };
 }
@@ -199,6 +204,19 @@ export async function getRounds(): Promise<number[]> {
 export async function latestRound(): Promise<number | null> {
   const rounds = await getRounds();
   return rounds.length ? rounds[0] : null;
+}
+
+/** 문항의 factIds 갱신 (AI 연결용) */
+export async function setQuestionFactIds(id: string, factIds: string[]): Promise<void> {
+  await db.collection(COL.questions).doc(id).update({ factIds });
+}
+
+/** 연결 대상 문항 조회. missing=factIds 비어있는 것만, all=전체 */
+export async function getQuestionsForLinking(
+  mode: "missing" | "all"
+): Promise<QuestionDTO[]> {
+  const rows = await getAllQuestions();
+  return mode === "all" ? rows : rows.filter((r) => r.factIds.length === 0);
 }
 
 // ───────────────────────── Release ─────────────────────────
@@ -274,12 +292,25 @@ function docToFact(id: string, d: FirebaseFirestore.DocumentData): FactDTO {
     kind: d.kind ?? "event",
     body: d.body ?? "",
     relatedTo: Array.isArray(d.relatedTo) ? d.relatedTo : [],
+    period: d.period ?? null,
+    category: d.category ?? null,
+    importance: typeof d.importance === "number" ? d.importance : null,
+    keywords: Array.isArray(d.keywords) ? d.keywords : [],
   };
 }
 
 export async function getFacts(era?: string | null, kind?: string | null): Promise<FactDTO[]> {
-  const snap = await db.collection(COL.facts).get();
-  let rows = snap.docs.map((d) => docToFact(d.id, d.data()));
+  const [factSnap, allQ] = await Promise.all([
+    db.collection(COL.facts).get(),
+    getAllQuestions(),
+  ]);
+  const counts = new Map<string, number>();
+  for (const q of allQ) for (const fid of q.factIds) counts.set(fid, (counts.get(fid) ?? 0) + 1);
+
+  let rows = factSnap.docs.map((d) => {
+    const f = docToFact(d.id, d.data());
+    return { ...f, questionCount: counts.get(f.id) ?? 0 };
+  });
   if (era) rows = rows.filter((r) => r.era === era);
   if (kind) rows = rows.filter((r) => r.kind === kind);
   return rows.sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
