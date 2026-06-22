@@ -3,17 +3,20 @@ FROM node:22-bookworm-slim
 
 WORKDIR /app
 
-# Prisma 엔진 postinstall(prisma generate)에 필요한 openssl
-# (앱 런타임은 Firebase만 쓰지만, devDeps의 prisma가 설치 시 generate를 실행)
-RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+# prisma 엔진/TLS 안정화용 (postinstall은 건너뛰지만 안전하게 설치)
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 # 의존성 설치 (캐시 최적화)
+# 런타임은 Firebase만 사용하므로 @prisma/client postinstall(prisma generate)은 불필요.
+# 슬림 이미지에서 prisma generate가 빌드를 깨뜨리던 원인을 --ignore-scripts로 원천 차단.
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # 소스 복사 후 프로덕션 빌드
 COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
 ENV NODE_ENV=production
