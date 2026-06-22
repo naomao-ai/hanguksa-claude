@@ -39,6 +39,16 @@ export const ERAS: EraDef[] = [
 
 export const ERA_KEYS = ERAS.map((e) => e.key);
 
+/** 연표 항목 주제 분류 */
+export const FACT_CATEGORIES = ["정치", "경제", "사회", "문화", "대외관계"] as const;
+
+/** 한 시대와 시간상 인접한(직전·자신·직후) 시대 키. AI 연결 후보 범위 산정용. */
+export function adjacentEras(eraKey: string): string[] {
+  const i = ERA_KEYS.indexOf(eraKey);
+  if (i < 0) return [];
+  return ERA_KEYS.slice(Math.max(0, i - 1), i + 2);
+}
+
 export function eraDef(key: string): EraDef | undefined {
   return ERAS.find((e) => e.key === key);
 }
