@@ -20,7 +20,9 @@ ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
 ENV NODE_ENV=production
-ENV PORT=3000
-EXPOSE 3000
+# Cloud Run은 런타임에 $PORT(기본 8080)를 주입하며, 컨테이너는 그 포트로 리스닝해야 함.
+# -p 를 하드코딩하지 않고 $PORT를 사용(미설정 시 8080 기본)해야 헬스체크를 통과한다.
+ENV PORT=8080
+EXPOSE 8080
 
-CMD ["node", "node_modules/next/dist/bin/next", "start", "-H", "0.0.0.0", "-p", "3000"]
+CMD ["sh", "-c", "exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p ${PORT:-8080}"]
