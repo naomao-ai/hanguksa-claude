@@ -14,7 +14,12 @@ runConfig:
 
 env:
   - variable: FIREBASE_STORAGE_BUCKET
-    value: YOUR_FIREBASE_PROJECT_ID.appspot.com
+    value: hanguksa-claude.firebasestorage.app
+    availability:
+      - RUNTIME
+
+  - variable: FIRESTORE_DATABASE_ID
+    value: hanguksa-claude
     availability:
       - RUNTIME
 

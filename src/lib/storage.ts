@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { bucket } from "./firebase-admin";
+import { bucket } from "./firebase-admin.ts";
 
 /**
  * base64 data URL 이미지를 Firebase Storage에 업로드하고 공개 접근 가능한
