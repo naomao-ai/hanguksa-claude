@@ -71,10 +71,14 @@ export async function POST(req: NextRequest) {
     examRound: body.examRound ? Number(body.examRound) : null,
     examYear: body.examYear ? Number(body.examYear) : null,
     number: body.number ? Number(body.number) : null,
+    factIds: Array.isArray(body.factIds) ? body.factIds : [],
   });
 
-  // 백그라운드 연결 (응답 비차단). 실패는 무시(관리자 일괄로 보완 가능).
-  after(() => linkOneById(question.id).catch(() => {}));
+  // 관리자가 연표를 직접 고르지 않은 경우에만 백그라운드 자동연결(응답 비차단).
+  // 수동 선택이 있으면 덮어쓰지 않는다.
+  if (question.factIds.length === 0) {
+    after(() => linkOneById(question.id).catch(() => {}));
+  }
 
   return NextResponse.json({ question });
 }

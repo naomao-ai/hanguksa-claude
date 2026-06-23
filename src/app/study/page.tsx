@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { ERAS, QUESTION_TYPES, LEVELS } from "@/lib/domain";
-import { fetchQuestions, fetchRounds } from "@/lib/api";
+import { fetchQuestions, fetchRounds, fetchFacts } from "@/lib/api";
 import type { QuestionDTO } from "@/lib/types";
 import StudyRunner from "@/components/StudyRunner";
 import Chips from "@/components/Chips";
 import { Loader2 } from "lucide-react";
 
-export default function StudyPage() {
+function StudyPage() {
   const [level, setLevel] = useState<string>("");
   const [era, setEra] = useState<string>("");
   const [qType, setQType] = useState<string>("");
@@ -18,7 +19,25 @@ export default function StudyPage() {
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<QuestionDTO[] | null>(null);
 
+  const params = useSearchParams();
+  const factId = params.get("factId");
+  const [factTitle, setFactTitle] = useState<string>("");
+
   useEffect(() => { fetchRounds().then(setRounds); }, []);
+
+  // 연표 상세에서 진입(factId) 시 연결된 문제로 바로 학습 시작
+  useEffect(() => {
+    if (!factId) return;
+    setLoading(true);
+    Promise.all([
+      fetchQuestions({ factId, limit: 100 }),
+      fetchFacts(),
+    ]).then(([qs, facts]) => {
+      setQuestions(qs);
+      setFactTitle(facts.find((f) => f.id === factId)?.title ?? "");
+      setLoading(false);
+    });
+  }, [factId]);
 
   async function start() {
     setLoading(true);
@@ -37,12 +56,27 @@ export default function StudyPage() {
   if (questions) {
     return (
       <div className="space-y-4">
-        <button className="text-sm text-muted hover:text-foreground" onClick={() => setQuestions(null)}>
-          ← 조건 다시 설정
-        </button>
-        <StudyRunner questions={questions} />
+        {factId ? (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted">연표 <b className="text-foreground">{factTitle}</b> 관련 문제 {questions.length}개</p>
+            <a href="/timeline" className="text-sm text-muted hover:text-foreground">← 연표로</a>
+          </div>
+        ) : (
+          <button className="text-sm text-muted hover:text-foreground" onClick={() => setQuestions(null)}>
+            ← 조건 다시 설정
+          </button>
+        )}
+        {questions.length === 0 ? (
+          <div className="card p-8 text-center text-muted">이 연표에 연결된 문제가 아직 없습니다.</div>
+        ) : (
+          <StudyRunner questions={questions} />
+        )}
       </div>
     );
+  }
+
+  if (factId && loading) {
+    return <div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>;
   }
 
   return (
@@ -106,5 +140,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <label className="mb-2 block text-sm font-medium">{label}</label>
       {children}
     </div>
+  );
+}
+
+export default function StudyPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>}>
+      <StudyPage />
+    </Suspense>
   );
 }

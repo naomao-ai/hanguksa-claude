@@ -11,6 +11,18 @@ function yearLabel(y: number | null): string {
   return y < 0 ? `BC ${-y}` : `${y}`;
 }
 
+/** 같은 era 안에서 period별로 묶어 정렬 순서를 유지한 그룹 배열 반환 */
+function groupByPeriod(items: FactDTO[]): { period: string | null; rows: FactDTO[] }[] {
+  const order: string[] = [];
+  const map = new Map<string, FactDTO[]>();
+  for (const f of items) {
+    const key = f.period ?? "_none";
+    if (!map.has(key)) { map.set(key, []); order.push(key); }
+    map.get(key)!.push(f);
+  }
+  return order.map((k) => ({ period: k === "_none" ? null : k, rows: map.get(k)! }));
+}
+
 export default function TimelinePage() {
   const [facts, setFacts] = useState<FactDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,21 +63,29 @@ export default function TimelinePage() {
                 >
                   {era.label}
                 </div>
-                <div className="relative space-y-2 border-l-2 pl-4" style={{ borderColor: era.color }}>
-                  {items.map((f) => (
-                    <button
-                      key={f.id}
-                      onClick={() => setActive(f)}
-                      className="card relative w-full p-3 text-left hover:border-primary/40"
-                    >
-                      <span
-                        className="absolute -left-[1.4rem] top-4 h-3 w-3 rounded-full ring-2 ring-[var(--background)]"
-                        style={{ background: era.color }}
-                      />
-                      <span className="block text-xs text-muted">{yearLabel(f.year)}</span>
-                      <span className="block font-semibold">{f.title}</span>
-                      <span className="line-clamp-2 text-xs text-muted">{f.body}</span>
-                    </button>
+                <div className="relative space-y-3 border-l-2 pl-4" style={{ borderColor: era.color }}>
+                  {groupByPeriod(items).map(({ period, rows }) => (
+                    <div key={period ?? "_"} className="space-y-2">
+                      {period && <div className="text-xs font-semibold text-muted">{period}</div>}
+                      {rows.map((f) => (
+                        <button
+                          key={f.id}
+                          onClick={() => setActive(f)}
+                          className="card relative w-full p-3 text-left hover:border-primary/40"
+                        >
+                          <span
+                            className="absolute -left-[1.4rem] top-4 h-3 w-3 rounded-full ring-2 ring-[var(--background)]"
+                            style={{ background: era.color }}
+                          />
+                          <span className="block text-xs text-muted">{yearLabel(f.year)}</span>
+                          <span className="block font-semibold">{f.title}</span>
+                          {(f.questionCount ?? 0) > 0 && (
+                            <span className="mt-0.5 inline-block rounded bg-primary/12 px-1.5 text-[10px] text-primary">문제 {f.questionCount}</span>
+                          )}
+                          <span className="line-clamp-2 text-xs text-muted">{f.body}</span>
+                        </button>
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -86,6 +106,11 @@ export default function TimelinePage() {
             </span>
             <h3 className="mb-2 text-xl font-bold">{active.title}</h3>
             <p className="mb-3 leading-relaxed">{active.body}</p>
+            <div className="mb-3 flex flex-wrap gap-1.5 text-xs">
+              {active.category && <span className="rounded-full bg-primary/12 px-2 py-0.5 text-primary">{active.category}</span>}
+              {active.importance ? <span className="rounded-full bg-accent/12 px-2 py-0.5 text-accent">{"★".repeat(active.importance)}</span> : null}
+              {active.period && <span className="rounded-full bg-surface-2 px-2 py-0.5">{active.period}</span>}
+            </div>
             {active.relatedTo.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {active.relatedTo.map((r) => (
@@ -93,7 +118,12 @@ export default function TimelinePage() {
                 ))}
               </div>
             )}
-            <button className="btn btn-primary mt-4 w-full py-2" onClick={() => setActive(null)}>닫기</button>
+            {(active.questionCount ?? 0) > 0 && (
+              <a href={`/study?factId=${active.id}`} className="btn btn-primary mt-3 w-full py-2">
+                관련 문제 {active.questionCount}개 풀기
+              </a>
+            )}
+            <button className="btn btn-ghost mt-2 w-full py-2" onClick={() => setActive(null)}>닫기</button>
           </div>
         </div>
       )}

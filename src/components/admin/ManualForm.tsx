@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ERAS, QUESTION_TYPES, LEVELS } from "@/lib/domain";
 import { useUI } from "@/components/ui/UIProvider";
+import { fetchFacts } from "@/lib/api";
+import type { FactDTO } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 
 /** 관리자 전용: 단일 문항 수동 추가 */
@@ -20,6 +22,14 @@ export default function ManualForm({ onSaved }: { onSaved: () => void }) {
   const [topics, setTopics] = useState("");
   const [examRound, setExamRound] = useState("");
   const [saving, setSaving] = useState(false);
+  const [facts, setFacts] = useState<FactDTO[]>([]);
+  const [factIds, setFactIds] = useState<string[]>([]);
+
+  // 선택한 시대의 연표만 피커에 로드
+  useEffect(() => {
+    fetchFacts(era).then(setFacts);
+    setFactIds([]);
+  }, [era]);
 
   async function save() {
     const filled = choices.map((c) => c.trim()).filter(Boolean);
@@ -39,11 +49,12 @@ export default function ManualForm({ onSaved }: { onSaved: () => void }) {
         explanation,
         topics: topics.split(",").map((t) => t.trim()).filter(Boolean),
         examRound: examRound ? Number(examRound) : undefined,
+        factIds,
       }),
     });
     setSaving(false);
     if (res.ok) {
-      setStem(""); setPassage(""); setImageDescription(""); setChoices(["", "", "", "", ""]); setAnswerIndex(0); setExplanation(""); setTopics("");
+      setStem(""); setPassage(""); setImageDescription(""); setChoices(["", "", "", "", ""]); setAnswerIndex(0); setExplanation(""); setTopics(""); setFactIds([]);
       onSaved();
     } else {
       const d = await res.json().catch(() => ({}));
@@ -75,6 +86,23 @@ export default function ManualForm({ onSaved }: { onSaved: () => void }) {
         </div>
       ))}
       <input value={topics} onChange={(e) => setTopics(e.target.value)} placeholder="주제/인물 태그 (쉼표 구분)" className="w-full rounded border bg-surface px-2 py-1.5 text-sm" />
+      {facts.length > 0 && (
+        <div className="rounded border bg-surface-2 p-2">
+          <p className="mb-1 text-xs text-muted">관련 연표 연결 (선택) — 저장 후 AI가 자동 보완</p>
+          <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto">
+            {facts.map((f) => {
+              const on = factIds.includes(f.id);
+              return (
+                <button key={f.id} type="button"
+                  onClick={() => setFactIds((ids) => on ? ids.filter((x) => x !== f.id) : [...ids, f.id])}
+                  className={`rounded-full px-2 py-0.5 text-xs ${on ? "bg-primary text-white" : "border bg-surface"}`}>
+                  {f.year ?? ""} {f.title}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <textarea value={explanation} onChange={(e) => setExplanation(e.target.value)} placeholder="해설 (선택)" rows={2} className="w-full rounded border bg-surface p-2 text-sm" />
       <button className="btn btn-primary w-full py-2.5" onClick={save} disabled={saving}>
         {saving ? <Loader2 className="animate-spin" size={18} /> : "문항 저장"}
