@@ -15,9 +15,11 @@ hanguksa 앱(Next.js 16 + Firebase, Cloud Run 호스팅)의 코드 변경을 **�
 - Cloud Shell: `https://console.cloud.google.com/cloudshell?project=hanguksa-claude`
 - 로컬 작업 디렉토리: `C:\01.claude\hanguksa`
 
-## 제약 (반드시 인지)
+## 배포 경로 (둘 중 하나)
 
-실제 배포(`gcloud run deploy`)는 **owner 계정(`naomaoai@gmail.com`)으로 인증된 Cloud Shell에서만** 가능하다. 이유: 로컬에 gcloud 미설치, 서비스 계정은 Cloud Run/Cloud Build 권한 없음(403), 브라우저 Cloud Shell을 직접 구동할 도구 없음. 따라서 이 스킬은 배포 전후를 자동화하고, **배포 실행 한 줄만 사용자가 Cloud Shell에서** 돌린다. 절대 로컬에서 gcloud 배포를 시도하지 말 것.
+**A. 자동 배포(권장, 설정돼 있으면 기본)**: `.github/workflows/deploy.yml` 가 main push 시 Cloud Run에 자동 배포한다. 이 경우 `/update` 는 **커밋·빌드검증·푸시까지만** 하면 되고, 배포는 GitHub Actions가 처리한다. 진행 상황은 `https://github.com/naomao-ai/hanguksa-claude/actions` 에서 확인. (GitHub Secret `GCP_SA_KEY` 가 등록돼 있어야 동작 — 1회 설정.)
+
+**B. 수동 배포(폴백)**: 자동 배포가 막혔거나 미설정이면 Cloud Shell에서 직접 배포한다(아래 3단계). 로컬에는 gcloud가 없고 서비스 계정은 권한이 없으니 **절대 로컬에서 gcloud 배포를 시도하지 말 것.**
 
 ## 절차
 
@@ -36,9 +38,11 @@ hanguksa 앱(Next.js 16 + Firebase, Cloud Run 호스팅)의 코드 변경을 **�
   - 푸시: `git remote set-url origin https://<TOKEN>@github.com/naomao-ai/hanguksa-claude.git && git push origin main`
   - 원복: `git remote set-url origin https://github.com/naomao-ai/hanguksa-claude.git`
 
-### 3. 재배포 명령 안내 (사용자가 Cloud Shell에서 실행)
+### 3. 배포 (경로 A면 자동, 경로 B면 Cloud Shell)
 
-Cloud Shell URL과 함께 아래 **한 줄**을 제시한다:
+**경로 A(자동 배포 설정됨)**: 푸시만 하면 GitHub Actions가 배포한다. 사용자에게 Actions 페이지(`https://github.com/naomao-ai/hanguksa-claude/actions`)에서 진행 확인을 안내하고, 4단계 검증으로 넘어간다. Cloud Shell 명령은 제시하지 않는다.
+
+**경로 B(수동 폴백)**: Cloud Shell URL과 함께 아래 **한 줄**을 제시한다:
 
 ```bash
 cd ~/hanguksa-claude && git pull && gcloud run deploy hanguksa --source . --region asia-northeast3 --allow-unauthenticated --set-env-vars "FIREBASE_STORAGE_BUCKET=hanguksa-claude.firebasestorage.app,FIRESTORE_DATABASE_ID=hanguksa-claude" --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest,ADMIN_SECRET=ADMIN_SECRET:latest,FIREBASE_SERVICE_ACCOUNT=FIREBASE_SERVICE_ACCOUNT:latest"
