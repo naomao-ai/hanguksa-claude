@@ -1,0 +1,875 @@
+[
+  {
+    "id": "cmqfo6nia007i98ak2xg7eulo",
+    "era": "gojoseon",
+    "year": -2333,
+    "title": "고조선 건국",
+    "kind": "event",
+    "body": "단군왕검이 아사달에 도읍하여 고조선을 건국하였다고 전한다.",
+    "relatedTo": [
+      "단군왕검",
+      "8조법"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 674000000
+    }
+  },
+  {
+    "id": "cmqfo6nip007j98akaogs476y",
+    "era": "gojoseon",
+    "year": -194,
+    "title": "위만 집권",
+    "kind": "person",
+    "body": "위만이 준왕을 몰아내고 고조선의 왕이 되어 철기 문화를 본격 수용하였다.",
+    "relatedTo": [
+      "고조선 건국"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 689000000
+    }
+  },
+  {
+    "id": "cmqfo6nj5007k98akdqld5et0",
+    "era": "gojoseon",
+    "year": -108,
+    "title": "고조선 멸망",
+    "kind": "event",
+    "body": "한 무제의 침공으로 왕검성이 함락되어 멸망하고 한 군현이 설치되었다.",
+    "relatedTo": [
+      "위만 집권"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 705000000
+    }
+  },
+  {
+    "id": "cmqfo6njj007l98akra7hqxxn",
+    "era": "samguk",
+    "year": 372,
+    "title": "고구려 불교 수용",
+    "kind": "event",
+    "body": "소수림왕 때 전진의 순도가 불교를 전하였고, 태학 설립·율령 반포로 중앙집권을 강화하였다.",
+    "relatedTo": [
+      "소수림왕"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 719000000
+    }
+  },
+  {
+    "id": "cmqfo6njx007m98akg3hamx0q",
+    "era": "samguk",
+    "year": 384,
+    "title": "백제 불교 수용",
+    "kind": "event",
+    "body": "침류왕 때 동진의 마라난타가 불교를 전하였다.",
+    "relatedTo": [
+      "근초고왕"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 733000000
+    }
+  },
+  {
+    "id": "cmqfo6nkb007n98ak6aak7wf4",
+    "era": "samguk",
+    "year": 391,
+    "title": "광개토 대왕 즉위",
+    "kind": "person",
+    "body": "영락 연호를 사용하며 만주와 한강 이북으로 영토를 크게 넓혔다.",
+    "relatedTo": [
+      "장수왕",
+      "광개토 대왕릉비"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 747000000
+    }
+  },
+  {
+    "id": "cmqfo6nkp007o98akec3n4pp4",
+    "era": "samguk",
+    "year": 427,
+    "title": "장수왕 평양 천도",
+    "kind": "event",
+    "body": "장수왕이 평양으로 천도하고 남진 정책을 추진해 백제 한성을 함락하였다.",
+    "relatedTo": [
+      "광개토 대왕 즉위",
+      "충주 고구려비"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 762000000
+    }
+  },
+  {
+    "id": "cmqfo6nl4007p98aklx823302",
+    "era": "samguk",
+    "year": 527,
+    "title": "신라 불교 공인",
+    "kind": "event",
+    "body": "법흥왕 때 이차돈의 순교를 계기로 불교가 공인되었다.",
+    "relatedTo": [
+      "법흥왕"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 776000000
+    }
+  },
+  {
+    "id": "cmqfo6nlh007q98ak8swt7q2u",
+    "era": "samguk",
+    "year": 612,
+    "title": "살수 대첩",
+    "kind": "event",
+    "body": "을지문덕이 수 양제의 대군을 살수에서 크게 무찔렀다.",
+    "relatedTo": [
+      "고구려 불교 수용"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 790000000
+    }
+  },
+  {
+    "id": "cmqfo6nlv007r98akoakzj2z1",
+    "era": "samguk",
+    "year": 645,
+    "title": "안시성 싸움",
+    "kind": "event",
+    "body": "당 태종의 침입을 안시성에서 격퇴하였다.",
+    "relatedTo": [
+      "살수 대첩"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 803000000
+    }
+  },
+  {
+    "id": "cmqfo6nm9007s98akiha8vmrv",
+    "era": "samguk",
+    "year": 660,
+    "title": "백제 멸망",
+    "kind": "event",
+    "body": "나당 연합군의 공격으로 사비성이 함락되어 백제가 멸망하였다.",
+    "relatedTo": [
+      "성왕 사비 천도"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 817000000
+    }
+  },
+  {
+    "id": "cmqfo6nmn007t98ak6z3a3r8c",
+    "era": "samguk",
+    "year": 668,
+    "title": "고구려 멸망",
+    "kind": "event",
+    "body": "나당 연합군에 의해 평양성이 함락되어 고구려가 멸망하였다.",
+    "relatedTo": [
+      "백제 멸망"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 831000000
+    }
+  },
+  {
+    "id": "cmqfo6nn0007u98ak1lpzpv6r",
+    "era": "nambukguk",
+    "year": 676,
+    "title": "신라 삼국 통일",
+    "kind": "event",
+    "body": "문무왕 때 매소성·기벌포에서 당군을 물리치고 삼국 통일을 완성하였다.",
+    "relatedTo": [
+      "고구려 멸망",
+      "신문왕"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 844000000
+    }
+  },
+  {
+    "id": "cmqfo6nnd007v98akfcmr9mln",
+    "era": "nambukguk",
+    "year": 682,
+    "title": "신문왕 개혁",
+    "kind": "person",
+    "body": "9주 5소경 정비, 국학 설립, 관료전 지급과 녹읍 폐지로 왕권을 강화하였다.",
+    "relatedTo": [
+      "신라 삼국 통일"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 858000000
+    }
+  },
+  {
+    "id": "cmqfo6nnq007w98ak00y6cooc",
+    "era": "nambukguk",
+    "year": 698,
+    "title": "발해 건국",
+    "kind": "event",
+    "body": "대조영이 동모산에서 발해를 건국하며 고구려 계승 의식을 표방하였다.",
+    "relatedTo": [
+      "발해 문왕"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 871000000
+    }
+  },
+  {
+    "id": "cmqfo6no7007x98ak4c0qjrny",
+    "era": "nambukguk",
+    "year": 828,
+    "title": "청해진 설치",
+    "kind": "person",
+    "body": "장보고가 완도에 청해진을 세워 해상 무역을 장악하였다.",
+    "relatedTo": [
+      "신라 삼국 통일"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 887000000
+    }
+  },
+  {
+    "id": "cmqfo6nom007y98akxblptf1h",
+    "era": "goryeo",
+    "year": 918,
+    "title": "고려 건국",
+    "kind": "event",
+    "body": "왕건이 궁예를 몰아내고 고려를 건국하였다.",
+    "relatedTo": [
+      "후삼국 통일",
+      "광종"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 903000000
+    }
+  },
+  {
+    "id": "cmqfo6np0007z98akg55fbmlx",
+    "era": "goryeo",
+    "year": 936,
+    "title": "후삼국 통일",
+    "kind": "event",
+    "body": "고려가 신라의 항복과 후백제 정벌로 후삼국을 통일하였다.",
+    "relatedTo": [
+      "고려 건국"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 916000000
+    }
+  },
+  {
+    "id": "cmqfo6npf008098ak9zxa2typ",
+    "era": "goryeo",
+    "year": 956,
+    "title": "노비안검법",
+    "kind": "system",
+    "body": "광종이 불법으로 노비가 된 자를 해방하여 호족 세력을 약화시켰다.",
+    "relatedTo": [
+      "광종",
+      "과거제 시행"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 932000000
+    }
+  },
+  {
+    "id": "cmqfo6npt008198akxu2faz32",
+    "era": "goryeo",
+    "year": 958,
+    "title": "과거제 시행",
+    "kind": "system",
+    "body": "광종이 쌍기의 건의로 과거제를 처음 시행하였다.",
+    "relatedTo": [
+      "노비안검법",
+      "광종"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 946000000
+    }
+  },
+  {
+    "id": "cmqfo6nq7008298akdw762hes",
+    "era": "goryeo",
+    "year": 982,
+    "title": "시무 28조",
+    "kind": "system",
+    "body": "최승로가 성종에게 올려 유교 정치 이념과 12목 설치의 바탕이 되었다.",
+    "relatedTo": [
+      "과거제 시행"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 960000000
+    }
+  },
+  {
+    "id": "cmqfo6nql008398aknrn0s8u0",
+    "era": "goryeo",
+    "year": 993,
+    "title": "서희의 외교 담판",
+    "kind": "person",
+    "body": "거란의 1차 침입 때 서희가 외교로 강동 6주를 확보하였다.",
+    "relatedTo": [
+      "귀주 대첩"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 973000000
+    }
+  },
+  {
+    "id": "cmqfo6nr0008498akajchu0o5",
+    "era": "goryeo",
+    "year": 1019,
+    "title": "귀주 대첩",
+    "kind": "event",
+    "body": "강감찬이 거란군을 귀주에서 크게 무찔렀다.",
+    "relatedTo": [
+      "서희의 외교 담판"
+    ],
+    "createdAt": {
+      "_seconds": 1781555564,
+      "_nanoseconds": 988000000
+    }
+  },
+  {
+    "id": "cmqfo6nrg008598akp96iodzy",
+    "era": "goryeo",
+    "year": 1170,
+    "title": "무신정변",
+    "kind": "event",
+    "body": "정중부 등 무신들이 정변을 일으켜 권력을 장악하였다.",
+    "relatedTo": [
+      "만적의 난"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 5000000
+    }
+  },
+  {
+    "id": "cmqfo6nrx008698akqpiy43ml",
+    "era": "goryeo",
+    "year": 1198,
+    "title": "만적의 난",
+    "kind": "event",
+    "body": "최충헌의 사노 만적이 신분 해방을 도모한 봉기를 계획하였다.",
+    "relatedTo": [
+      "무신정변"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 22000000
+    }
+  },
+  {
+    "id": "cmqfo6nsd008798ak2vbvi30e",
+    "era": "goryeo",
+    "year": 1236,
+    "title": "팔만대장경 조판",
+    "kind": "culture",
+    "body": "몽골 침입을 부처의 힘으로 막고자 강화도에서 제작, 현재 해인사 보관.",
+    "relatedTo": [
+      "무신정변"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 38000000
+    }
+  },
+  {
+    "id": "cmqfo6nst008898ak2794f3ac",
+    "era": "goryeo",
+    "year": 1377,
+    "title": "직지심체요절",
+    "kind": "culture",
+    "body": "청주 흥덕사에서 간행된 현존 최고(最古)의 금속 활자본.",
+    "relatedTo": [
+      "팔만대장경 조판"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 53000000
+    }
+  },
+  {
+    "id": "cmqfo6nt8008998ak8l38ch87",
+    "era": "goryeo",
+    "year": 1388,
+    "title": "위화도 회군",
+    "kind": "event",
+    "body": "이성계가 요동 정벌 중 회군하여 권력을 장악, 조선 건국의 발판이 되었다.",
+    "relatedTo": [
+      "조선 건국"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 68000000
+    }
+  },
+  {
+    "id": "cmqfo6ntm008a98akekonhbnz",
+    "era": "joseon",
+    "year": 1392,
+    "title": "조선 건국",
+    "kind": "event",
+    "body": "이성계가 정도전 등과 함께 조선을 건국하였다.",
+    "relatedTo": [
+      "위화도 회군",
+      "한양 천도"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 83000000
+    }
+  },
+  {
+    "id": "cmqfo6nua008b98akkksb53k0",
+    "era": "joseon",
+    "year": 1446,
+    "title": "훈민정음 반포",
+    "kind": "culture",
+    "body": "세종이 집현전 학자들과 훈민정음을 창제·반포하였다.",
+    "relatedTo": [
+      "조선 건국"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 106000000
+    }
+  },
+  {
+    "id": "cmqfo6nuq008c98ak2f29kro6",
+    "era": "joseon",
+    "year": 1485,
+    "title": "경국대전 완성",
+    "kind": "system",
+    "body": "성종 때 조선의 기본 법전인 경국대전이 완성·반포되었다.",
+    "relatedTo": [
+      "훈민정음 반포"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 123000000
+    }
+  },
+  {
+    "id": "cmqfo6nv7008d98akck6ofgni",
+    "era": "joseon",
+    "year": 1592,
+    "title": "임진왜란",
+    "kind": "event",
+    "body": "일본의 침략으로 시작된 전쟁. 이순신의 수군과 의병이 활약하였다.",
+    "relatedTo": [
+      "한산도 대첩",
+      "병자호란"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 140000000
+    }
+  },
+  {
+    "id": "cmqfo6nvn008e98ak6l9euq3e",
+    "era": "joseon",
+    "year": 1608,
+    "title": "대동법 실시",
+    "kind": "system",
+    "body": "광해군 때 경기도에서 처음 시행, 공납을 토지 기준 쌀로 바꾸고 공인이 등장하였다.",
+    "relatedTo": [
+      "임진왜란"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 155000000
+    }
+  },
+  {
+    "id": "cmqfo6nw3008f98akk8my4pir",
+    "era": "joseon",
+    "year": 1636,
+    "title": "병자호란",
+    "kind": "event",
+    "body": "청의 침입으로 인조가 남한산성에서 항전하다 삼전도에서 항복하였다.",
+    "relatedTo": [
+      "임진왜란"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 171000000
+    }
+  },
+  {
+    "id": "cmqfo6nwj008g98ak24njdihr",
+    "era": "joseon",
+    "year": 1750,
+    "title": "균역법",
+    "kind": "system",
+    "body": "영조가 군포 부담을 2필에서 1필로 줄여 백성의 부담을 덜었다.",
+    "relatedTo": [
+      "탕평책"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 187000000
+    }
+  },
+  {
+    "id": "cmqfo6nwx008h98akugav9dry",
+    "era": "joseon",
+    "year": 1796,
+    "title": "수원 화성 완공",
+    "kind": "culture",
+    "body": "정조가 정약용의 거중기를 활용해 축조, 정치·군사적 중심지로 삼았다.",
+    "relatedTo": [
+      "균역법"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 202000000
+    }
+  },
+  {
+    "id": "cmqfo6nxc008i98akkrdy7k66",
+    "era": "modern",
+    "year": 1863,
+    "title": "흥선대원군 집권",
+    "kind": "person",
+    "body": "서원 철폐·호포제·경복궁 중건·척화비 건립 등 개혁과 통상 수교 거부를 추진하였다.",
+    "relatedTo": [
+      "강화도 조약"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 217000000
+    }
+  },
+  {
+    "id": "cmqfo6nxr008j98ak2qtuniqj",
+    "era": "modern",
+    "year": 1876,
+    "title": "강화도 조약",
+    "kind": "event",
+    "body": "운요호 사건을 계기로 체결된 최초의 근대적·불평등 조약. 부산 등 개항.",
+    "relatedTo": [
+      "흥선대원군 집권",
+      "갑신정변"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 231000000
+    }
+  },
+  {
+    "id": "cmqfo6ny6008k98akdkqzn0p2",
+    "era": "modern",
+    "year": 1884,
+    "title": "갑신정변",
+    "kind": "event",
+    "body": "급진 개화파가 우정총국 개국 축하연을 이용해 정변을 일으켰으나 3일 만에 실패하였다.",
+    "relatedTo": [
+      "강화도 조약",
+      "동학 농민 운동"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 246000000
+    }
+  },
+  {
+    "id": "cmqfo6nyk008l98akahbmea5c",
+    "era": "modern",
+    "year": 1894,
+    "title": "동학 농민 운동",
+    "kind": "event",
+    "body": "전봉준 등이 반봉건·반외세를 내걸고 봉기, 갑오개혁의 배경이 되었다.",
+    "relatedTo": [
+      "갑신정변",
+      "갑오개혁"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 260000000
+    }
+  },
+  {
+    "id": "cmqfo6nyz008m98akzrusttfi",
+    "era": "modern",
+    "year": 1897,
+    "title": "대한제국 선포",
+    "kind": "event",
+    "body": "고종이 환구단에서 황제 즉위, 광무개혁을 추진하였다.",
+    "relatedTo": [
+      "독립협회"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 275000000
+    }
+  },
+  {
+    "id": "cmqfo6nzf008n98akytkq3tjm",
+    "era": "modern",
+    "year": 1905,
+    "title": "을사늑약",
+    "kind": "event",
+    "body": "외교권을 박탈당하고 통감부가 설치되었다. 헤이그 특사 파견의 배경.",
+    "relatedTo": [
+      "대한제국 선포",
+      "신민회"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 291000000
+    }
+  },
+  {
+    "id": "cmqfo6nzw008o98ak6zo39pdt",
+    "era": "modern",
+    "year": 1907,
+    "title": "신민회",
+    "kind": "system",
+    "body": "안창호·양기탁의 비밀 결사. 공화정 지향, 대성학교·오산학교 설립.",
+    "relatedTo": [
+      "을사늑약"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 309000000
+    }
+  },
+  {
+    "id": "cmqfo6o0c008p98akgics44y4",
+    "era": "japanese",
+    "year": 1910,
+    "title": "국권 피탈",
+    "kind": "event",
+    "body": "한일 병합으로 국권을 상실, 1910년대 무단 통치가 시작되었다.",
+    "relatedTo": [
+      "3·1 운동"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 324000000
+    }
+  },
+  {
+    "id": "cmqfo6o0q008q98ak1dy1zdwj",
+    "era": "japanese",
+    "year": 1919,
+    "title": "3·1 운동",
+    "kind": "event",
+    "body": "전국적 만세 시위. 대한민국 임시정부 수립의 계기가 되었다.",
+    "relatedTo": [
+      "대한민국 임시정부",
+      "국권 피탈"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 338000000
+    }
+  },
+  {
+    "id": "cmqfo6o15008r98ak5dofqk12",
+    "era": "japanese",
+    "year": 1920,
+    "title": "봉오동·청산리 전투",
+    "kind": "event",
+    "body": "홍범도와 김좌진 등이 만주에서 일본군에 큰 승리를 거두었다.",
+    "relatedTo": [
+      "3·1 운동",
+      "의열단"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 353000000
+    }
+  },
+  {
+    "id": "cmqfo6o1k008s98akt4ju2hps",
+    "era": "japanese",
+    "year": 1927,
+    "title": "신간회 창립",
+    "kind": "system",
+    "body": "민족주의·사회주의 연합의 민족 유일당. 광주 학생 운동에 조사단 파견.",
+    "relatedTo": [
+      "광주 학생 항일 운동"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 369000000
+    }
+  },
+  {
+    "id": "cmqfo6o20008t98aktidaano8",
+    "era": "japanese",
+    "year": 1932,
+    "title": "윤봉길 의거",
+    "kind": "person",
+    "body": "한인 애국단의 윤봉길이 상하이 훙커우 공원에서 의거를 일으켰다.",
+    "relatedTo": [
+      "대한민국 임시정부",
+      "한국광복군"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 385000000
+    }
+  },
+  {
+    "id": "cmqfo6o2f008u98akr5rcw88e",
+    "era": "japanese",
+    "year": 1940,
+    "title": "한국광복군 창설",
+    "kind": "system",
+    "body": "대한민국 임시정부가 충칭에서 창설, 국내 진공 작전을 준비하였다.",
+    "relatedTo": [
+      "윤봉길 의거"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 400000000
+    }
+  },
+  {
+    "id": "cmqfo6o2u008v98ak687gyz9c",
+    "era": "contemporary",
+    "year": 1945,
+    "title": "8·15 광복",
+    "kind": "event",
+    "body": "일본의 항복으로 광복을 맞았다.",
+    "relatedTo": [
+      "대한민국 정부 수립"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 414000000
+    }
+  },
+  {
+    "id": "cmqfo6o38008w98ak645952nh",
+    "era": "contemporary",
+    "year": 1948,
+    "title": "대한민국 정부 수립",
+    "kind": "event",
+    "body": "5·10 총선거를 거쳐 제헌 국회 구성, 대한민국 정부가 수립되었다.",
+    "relatedTo": [
+      "8·15 광복",
+      "6·25 전쟁"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 428000000
+    }
+  },
+  {
+    "id": "cmqfo6o3n008x98akv2tvszse",
+    "era": "contemporary",
+    "year": 1950,
+    "title": "6·25 전쟁",
+    "kind": "event",
+    "body": "북한의 남침으로 발발, 1953년 정전 협정으로 멈췄다.",
+    "relatedTo": [
+      "대한민국 정부 수립"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 444000000
+    }
+  },
+  {
+    "id": "cmqfo6o42008y98akb0hdyi9u",
+    "era": "contemporary",
+    "year": 1960,
+    "title": "4·19 혁명",
+    "kind": "event",
+    "body": "3·15 부정 선거에 항거, 이승만 대통령이 하야하였다.",
+    "relatedTo": [
+      "6월 민주항쟁"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 459000000
+    }
+  },
+  {
+    "id": "cmqfo6o4f008z98ak780saw7j",
+    "era": "contemporary",
+    "year": 1972,
+    "title": "7·4 남북 공동 성명",
+    "kind": "event",
+    "body": "자주·평화·민족 대단결의 통일 원칙에 합의하였다.",
+    "relatedTo": [
+      "6·15 남북 공동 선언"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 472000000
+    }
+  },
+  {
+    "id": "cmqfo6o4x009098akbc3gf2s0",
+    "era": "contemporary",
+    "year": 1980,
+    "title": "5·18 민주화 운동",
+    "kind": "event",
+    "body": "광주에서 신군부에 맞선 민주화 운동.",
+    "relatedTo": [
+      "4·19 혁명",
+      "6월 민주항쟁"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 489000000
+    }
+  },
+  {
+    "id": "cmqfo6o5g009198akr4jk3w06",
+    "era": "contemporary",
+    "year": 1987,
+    "title": "6월 민주항쟁",
+    "kind": "event",
+    "body": "6·29 선언과 대통령 직선제 개헌을 이끌어냈다.",
+    "relatedTo": [
+      "5·18 민주화 운동"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 509000000
+    }
+  },
+  {
+    "id": "cmqfo6o60009298ak0xlcmu2m",
+    "era": "contemporary",
+    "year": 2000,
+    "title": "6·15 남북 공동 선언",
+    "kind": "event",
+    "body": "분단 후 첫 남북 정상 회담의 결과로 발표되었다.",
+    "relatedTo": [
+      "7·4 남북 공동 성명"
+    ],
+    "createdAt": {
+      "_seconds": 1781555565,
+      "_nanoseconds": 528000000
+    }
+  }
+]

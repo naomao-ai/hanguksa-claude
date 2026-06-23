@@ -12,6 +12,7 @@
     "seed:recent": "node --experimental-strip-types prisma/seed-recent.ts",
     "db:push": "prisma db push",
     "migrate:firebase": "node --env-file=.env.local --experimental-strip-types scripts/migrate-to-firebase.ts",
+    "seed:timeline": "node --env-file=.env.local --experimental-strip-types scripts/seed-timeline.ts",
     "sim": "node scripts/simulate.mjs 30 functional",
     "sim:perf": "node scripts/simulate.mjs 30 perf"
   },
