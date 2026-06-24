@@ -5,13 +5,14 @@ import UploadPanel from "@/components/admin/UploadPanel";
 import ManualForm from "@/components/admin/ManualForm";
 import VideoForm from "@/components/admin/VideoForm";
 import FactLinkPanel from "@/components/admin/FactLinkPanel";
+import RelationLinkPanel from "@/components/admin/RelationLinkPanel";
 import { useUI } from "@/components/ui/UIProvider";
 import { fetchQuestions } from "@/lib/api";
 import { eraLabel, levelLabel, LEVELS } from "@/lib/domain";
 import type { QuestionDTO } from "@/lib/types";
-import { Loader2, Lock, LogOut, Sparkles, Plus, Rocket, Trash2, ShieldAlert, MonitorPlay, Link2 } from "lucide-react";
+import { Loader2, Lock, LogOut, Sparkles, Plus, Rocket, Trash2, ShieldAlert, MonitorPlay, Link2, Share2 } from "lucide-react";
 
-type Tab = "upload" | "manual" | "release" | "manage" | "video" | "factlink";
+type Tab = "upload" | "manual" | "release" | "manage" | "video" | "factlink" | "relation";
 
 export default function AdminPage() {
   const { toast } = useUI();
@@ -55,6 +56,7 @@ export default function AdminPage() {
           { k: "manage", label: "문항 관리", icon: Trash2 },
           { k: "video", label: "공부영상", icon: MonitorPlay },
           { k: "factlink", label: "연표 연결", icon: Link2 },
+          { k: "relation", label: "관계망", icon: Share2 },
         ].map(({ k, label, icon: Icon }) => (
           <button key={k} onClick={() => setTab(k as Tab)}
             className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${tab === k ? "border-primary text-primary" : "border-transparent text-muted hover:text-foreground"}`}>
@@ -71,6 +73,7 @@ export default function AdminPage() {
       {tab === "manage" && <ManageList />}
       {tab === "video" && <VideoForm />}
       {tab === "factlink" && <FactLinkPanel />}
+      {tab === "relation" && <RelationLinkPanel />}
     </div>
   );
 }
