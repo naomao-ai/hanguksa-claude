@@ -18,14 +18,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # GitHub Secret(GCP_SA_KEY) 의 서비스 계정 키로 GCP 인증
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
+
+      # GitHub Secret(GCP_SA_KEY_B64)에 담긴 base64 서비스 계정 키를 디코드해 인증.
+      # base64 한 줄로 보관하므로 여러 줄 JSON 복사 시 손상되는 문제를 피한다.
+      - name: Authenticate to Google Cloud
+        run: |
+          echo "${{ secrets.GCP_SA_KEY_B64 }}" | base64 -d > "$HOME/gcp-key.json"
+          gcloud auth activate-service-account --key-file="$HOME/gcp-key.json"
+          gcloud config set project "$PROJECT_ID"
 
       # 로컬 소스에서 빌드+배포 (Cloud Build 사용, 기존 Dockerfile 그대로)
       - name: Deploy to Cloud Run
@@ -42,3 +44,7 @@ jobs:
         run: |
           echo "배포 완료. Service URL:"
           gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format="value(status.url)"
+
+      - name: Cleanup key
+        if: always()
+        run: rm -f "$HOME/gcp-key.json"
