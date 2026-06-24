@@ -123,6 +123,9 @@ export default function TimelinePage() {
                 관련 문제 {active.questionCount}개 풀기
               </a>
             )}
+            <a href={`/network?factId=${active.id}`} className="btn btn-outline mt-2 w-full py-2">
+              이전·이후 관계 탐색
+            </a>
             <button className="btn btn-ghost mt-2 w-full py-2" onClick={() => setActive(null)}>닫기</button>
           </div>
         </div>

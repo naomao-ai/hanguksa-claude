@@ -39,6 +39,10 @@ export interface FactDTO {
   importance: number | null;
   /** 문제 매칭·검색용 핵심어 */
   keywords: string[];
+  /** 이전(배경·원인) 연표 문서 id */
+  prevFactIds: string[];
+  /** 이후(결과·영향) 연표 문서 id */
+  nextFactIds: string[];
   /** 이 연표에 연결된 문제 수 (getFacts가 채움) */
   questionCount?: number;
 }

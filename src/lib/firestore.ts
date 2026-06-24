@@ -296,6 +296,8 @@ function docToFact(id: string, d: FirebaseFirestore.DocumentData): FactDTO {
     category: d.category ?? null,
     importance: typeof d.importance === "number" ? d.importance : null,
     keywords: Array.isArray(d.keywords) ? d.keywords : [],
+    prevFactIds: Array.isArray(d.prevFactIds) ? d.prevFactIds : [],
+    nextFactIds: Array.isArray(d.nextFactIds) ? d.nextFactIds : [],
   };
 }
 
@@ -322,6 +324,15 @@ export async function searchFacts(terms: string[], take = 5): Promise<FactDTO[]>
   const snap = await db.collection(COL.facts).get();
   const rows = snap.docs.map((d) => docToFact(d.id, d.data()));
   return rows.filter((f) => terms.some((t) => f.title.includes(t))).slice(0, take);
+}
+
+/** 연표 항목의 이전/이후 방향 관계 갱신 (AI 관계망 생성용) */
+export async function setFactRelations(
+  id: string,
+  prevFactIds: string[],
+  nextFactIds: string[]
+): Promise<void> {
+  await db.collection(COL.facts).doc(id).update({ prevFactIds, nextFactIds });
 }
 
 // ───────────────────────── Video ─────────────────────────

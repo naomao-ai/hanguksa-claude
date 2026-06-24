@@ -1,174 +1,154 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { fetchFacts } from "@/lib/api";
-import { eraColor, eraLabel } from "@/lib/domain";
+import { ERAS, eraColor, eraLabel } from "@/lib/domain";
+import { buildFactMap, resolveRelations, pushPath } from "@/lib/network";
 import type { FactDTO } from "@/lib/types";
-import { Loader2, Network as NetIcon } from "lucide-react";
+import { Loader2, Network as NetIcon, ArrowLeft, ArrowRight } from "lucide-react";
 
-interface Node { id: string; era: string | null; x: number; y: number; vx: number; vy: number; body?: string }
-interface Edge { a: string; b: string }
+function yearLabel(y: number | null): string {
+  if (y == null) return "";
+  return y < 0 ? `BC ${-y}` : `${y}`;
+}
 
-const W = 800;
-const H = 560;
-
-export default function NetworkPage() {
+function NetworkPage() {
+  const params = useSearchParams();
+  const initialFactId = params.get("factId");
   const [facts, setFacts] = useState<FactDTO[]>([]);
   const [loading, setLoading] = useState(true);
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
-  const [active, setActive] = useState<string | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const [era, setEra] = useState<string>("");
+  const [path, setPath] = useState<string[]>([]);
 
   useEffect(() => {
     fetchFacts().then((f) => { setFacts(f); setLoading(false); });
   }, []);
-
-  // 그래프 구성 + 힘 기반 레이아웃
   useEffect(() => {
-    if (facts.length === 0) return;
+    if (initialFactId) setPath([initialFactId]);
+  }, [initialFactId]);
 
-    const nodeMap = new Map<string, Node>();
-    const eraOf = new Map<string, string>();
-    facts.forEach((f) => eraOf.set(f.title, f.era));
+  const factMap = useMemo(() => buildFactMap(facts), [facts]);
+  const centerId = path[path.length - 1] ?? null;
+  const center = centerId ? factMap.get(centerId) ?? null : null;
+  const rel = useMemo(
+    () => (center ? resolveRelations(center, factMap) : { prev: [], next: [] }),
+    [center, factMap]
+  );
 
-    function ensure(id: string) {
-      if (!nodeMap.has(id)) {
-        const i = nodeMap.size;
-        // 원형 초기 배치 (결정적)
-        const ang = (i * 2.399963); // 황금각
-        const r = 40 + i * 6;
-        nodeMap.set(id, {
-          id,
-          era: eraOf.get(id) ?? null,
-          x: W / 2 + Math.cos(ang) * r * 0.5,
-          y: H / 2 + Math.sin(ang) * r * 0.5,
-          vx: 0, vy: 0,
-        });
-      }
-      return nodeMap.get(id)!;
-    }
+  function go(id: string) { setPath((p) => pushPath(p, id)); }
 
-    const es: Edge[] = [];
-    facts.forEach((f) => {
-      const n = ensure(f.title);
-      n.body = f.body;
-      f.relatedTo.forEach((r) => {
-        ensure(r);
-        es.push({ a: f.title, b: r });
-      });
-    });
-
-    const ns = [...nodeMap.values()];
-
-    // 간단한 스프링/반발 시뮬레이션
-    for (let iter = 0; iter < 220; iter++) {
-      // 반발력
-      for (let i = 0; i < ns.length; i++) {
-        for (let j = i + 1; j < ns.length; j++) {
-          const dx = ns[i].x - ns[j].x;
-          const dy = ns[i].y - ns[j].y;
-          let d2 = dx * dx + dy * dy;
-          if (d2 < 1) d2 = 1;
-          const force = 1400 / d2;
-          const d = Math.sqrt(d2);
-          const fx = (dx / d) * force;
-          const fy = (dy / d) * force;
-          ns[i].vx += fx; ns[i].vy += fy;
-          ns[j].vx -= fx; ns[j].vy -= fy;
-        }
-      }
-      // 스프링(엣지)
-      for (const e of es) {
-        const a = nodeMap.get(e.a)!, b = nodeMap.get(e.b)!;
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d = Math.sqrt(dx * dx + dy * dy) || 1;
-        const k = (d - 90) * 0.02;
-        const fx = (dx / d) * k, fy = (dy / d) * k;
-        a.vx += fx; a.vy += fy;
-        b.vx -= fx; b.vy -= fy;
-      }
-      // 중심 인력 + 감쇠 + 위치 갱신
-      for (const n of ns) {
-        n.vx += (W / 2 - n.x) * 0.005;
-        n.vy += (H / 2 - n.y) * 0.005;
-        n.vx *= 0.85; n.vy *= 0.85;
-        n.x += n.vx; n.y += n.vy;
-        n.x = Math.max(30, Math.min(W - 30, n.x));
-        n.y = Math.max(30, Math.min(H - 30, n.y));
-      }
-    }
-
-    setNodes(ns);
-    setEdges(es);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [facts]);
-
-  const neighbors = useMemo(() => {
-    if (!active) return new Set<string>();
-    const s = new Set<string>([active]);
-    edges.forEach((e) => {
-      if (e.a === active) s.add(e.b);
-      if (e.b === active) s.add(e.a);
-    });
-    return s;
-  }, [active, edges]);
-
-  const activeNode = nodes.find((n) => n.id === active);
+  if (loading) return <div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>;
 
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="flex items-center gap-2 text-2xl font-bold"><NetIcon className="text-primary" /> 인물 · 사건 관계망</h1>
-        <p className="text-muted">사건·인물·제도의 연결을 시각화합니다. 노드를 눌러 관계를 확인하세요.</p>
+        <h1 className="flex items-center gap-2 text-2xl font-bold"><NetIcon className="text-primary" /> 사건 관계망</h1>
+        <p className="text-muted">한 사건의 이전(배경·원인)·이후(결과·영향)를 따라 흐름을 탐색합니다.</p>
       </header>
 
-      {loading ? (
-        <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted" /></div>
-      ) : (
-        <div className="card overflow-hidden p-2">
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ touchAction: "none" }}>
-            {edges.map((e, i) => {
-              const a = nodes.find((n) => n.id === e.a);
-              const b = nodes.find((n) => n.id === e.b);
-              if (!a || !b) return null;
-              const hot = active && (neighbors.has(e.a) && neighbors.has(e.b));
-              return (
-                <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                  stroke={hot ? "var(--primary)" : "var(--border)"}
-                  strokeWidth={hot ? 2 : 1} opacity={active && !hot ? 0.15 : 0.6} />
-              );
-            })}
-            {nodes.map((n) => {
-              const dim = active && !neighbors.has(n.id);
-              const isActive = n.id === active;
-              const color = n.era ? eraColor(n.era) : "#94a3b8";
-              return (
-                <g key={n.id} onClick={() => setActive(isActive ? null : n.id)} style={{ cursor: "pointer" }} opacity={dim ? 0.25 : 1}>
-                  <circle cx={n.x} cy={n.y} r={isActive ? 9 : 6} fill={color} stroke={isActive ? "var(--foreground)" : "white"} strokeWidth={isActive ? 2 : 1} />
-                  <text x={n.x} y={n.y - 11} textAnchor="middle" fontSize={11} fill="var(--foreground)" style={{ pointerEvents: "none" }}>
-                    {n.id}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-      )}
-
-      {activeNode && (
-        <div className="card p-4">
-          <div className="mb-1 flex items-center gap-2">
-            {activeNode.era && (
-              <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ background: eraColor(activeNode.era) }}>
-                {eraLabel(activeNode.era)}
-              </span>
-            )}
-            <h3 className="font-bold">{activeNode.id}</h3>
+      {!center ? (
+        // 진입: 시대 선택 → 사건 목록
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-1.5">
+            {ERAS.map((e) => (
+              <button key={e.key} onClick={() => setEra(e.key)}
+                className={`rounded-full px-3 py-1.5 text-sm ${era === e.key ? "text-white" : "border bg-surface"}`}
+                style={era === e.key ? { background: e.color } : undefined}>
+                {e.label}
+              </button>
+            ))}
           </div>
-          <p className="text-sm leading-relaxed text-muted">{activeNode.body ?? "연결된 키워드입니다."}</p>
+          {era ? (
+            <ul className="space-y-2">
+              {facts.filter((f) => f.era === era).sort((a, b) => (a.year ?? 0) - (b.year ?? 0)).map((f) => (
+                <li key={f.id}>
+                  <button onClick={() => setPath([f.id])} className="card flex w-full items-center gap-3 p-3 text-left hover:border-primary/40">
+                    <span className="text-xs text-muted">{yearLabel(f.year)}</span>
+                    <span className="font-semibold">{f.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="card p-8 text-center text-muted">시대를 선택하면 사건 목록이 나옵니다.</div>
+          )}
+        </div>
+      ) : (
+        // 탐색 뷰: breadcrumb + 이전 | 현재 | 이후
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-1 text-sm">
+            <button onClick={() => setPath([])} className="text-muted hover:text-foreground">시대 선택</button>
+            {path.map((id, i) => {
+              const f = factMap.get(id);
+              return (
+                <span key={id} className="flex items-center gap-1">
+                  <span className="text-muted">/</span>
+                  <button onClick={() => setPath(path.slice(0, i + 1))}
+                    className={i === path.length - 1 ? "font-semibold text-primary" : "text-muted hover:text-foreground"}>
+                    {f?.title ?? id}
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_1.2fr_1fr]">
+            <RelColumn title="이전 (배경·원인)" icon={<ArrowLeft size={14} />} items={rel.prev} onGo={go} align="end" />
+
+            <div className="card border-primary/40 p-4">
+              {center.category || center.importance || center.period ? (
+                <div className="mb-2 flex flex-wrap gap-1.5 text-xs">
+                  {center.category && <span className="rounded-full bg-primary/12 px-2 py-0.5 text-primary">{center.category}</span>}
+                  {center.importance ? <span className="rounded-full bg-accent/12 px-2 py-0.5 text-accent">{"★".repeat(center.importance)}</span> : null}
+                  {center.period && <span className="rounded-full bg-surface-2 px-2 py-0.5">{center.period}</span>}
+                </div>
+              ) : null}
+              <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ background: eraColor(center.era) }}>
+                {eraLabel(center.era)} · {yearLabel(center.year)}
+              </span>
+              <h2 className="mt-2 text-xl font-bold">{center.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed">{center.body}</p>
+              {(center.questionCount ?? 0) > 0 && (
+                <a href={`/study?factId=${center.id}`} className="btn btn-primary mt-3 w-full py-2">관련 문제 {center.questionCount}개 풀기</a>
+              )}
+            </div>
+
+            <RelColumn title="이후 (결과·영향)" icon={<ArrowRight size={14} />} items={rel.next} onGo={go} align="start" />
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function RelColumn({ title, icon, items, onGo, align }: {
+  title: string; icon: React.ReactNode; items: FactDTO[]; onGo: (id: string) => void; align: "start" | "end";
+}) {
+  return (
+    <div className="space-y-2">
+      <div className={`flex items-center gap-1 text-xs font-semibold text-muted ${align === "end" ? "md:justify-end" : ""}`}>
+        {icon} {title}
+      </div>
+      {items.length === 0 ? (
+        <div className="card p-3 text-center text-xs text-muted">관계 없음</div>
+      ) : (
+        items.map((f) => (
+          <button key={f.id} onClick={() => onGo(f.id)} className="card w-full p-3 text-left hover:border-primary/40">
+            <span className="block text-xs text-muted">{yearLabel(f.year)}</span>
+            <span className="block text-sm font-semibold">{f.title}</span>
+            <span className="line-clamp-2 text-xs text-muted">{f.body}</span>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+export default function NetworkPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>}>
+      <NetworkPage />
+    </Suspense>
   );
 }
