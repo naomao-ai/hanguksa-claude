@@ -32,6 +32,14 @@ export interface Streak {
   studyDays: string[]; // 학습한 날짜 목록
 }
 
+/** 방문(앱 열기) 기준 출석 — 풀이 기준 streak와 별개 */
+export interface Attendance {
+  lastDay: string | null; // YYYY-MM-DD
+  total: number; // 누적 출석일 수
+  current: number; // 연속 출석일 수
+  longest: number; // 최장 연속
+}
+
 export interface Store {
   attempts: Attempt[];
   srs: Record<string, SrsState>; // questionId -> 상태
@@ -40,6 +48,7 @@ export interface Store {
   streak: Streak;
   settings: Settings;
   badges: string[];
+  attendance: Attendance;
 }
 
 function emptyStore(): Store {
@@ -51,6 +60,7 @@ function emptyStore(): Store {
     streak: { current: 0, longest: 0, lastDay: null, studyDays: [] },
     settings: { examDate: null, targetLevel: "SIMHWA", targetGrade: 1 },
     badges: [],
+    attendance: { lastDay: null, total: 0, current: 0, longest: 0 },
   };
 }
 
@@ -115,6 +125,28 @@ function updateStreak(streak: Streak, day: string): Streak {
     longest: Math.max(streak.longest, current),
     lastDay: day,
     studyDays,
+  };
+}
+
+/** 방문 출석 체크 — 오늘 첫 방문이면 누적·연속 갱신(멱등). 순수 함수. */
+export function checkInToday(s: Store, day: string): Store {
+  const a = s.attendance;
+  if (a.lastDay === day) return s;
+  let current = 1;
+  if (a.lastDay) {
+    const diff = Math.round(
+      (new Date(day).getTime() - new Date(a.lastDay).getTime()) / 86_400_000
+    );
+    current = diff === 1 ? a.current + 1 : 1;
+  }
+  return {
+    ...s,
+    attendance: {
+      lastDay: day,
+      total: a.total + 1,
+      current,
+      longest: Math.max(a.longest, current),
+    },
   };
 }
 
