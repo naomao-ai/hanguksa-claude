@@ -1,24 +1,36 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/useStore";
-import { dueQuestionIds, wrongQuestionIds } from "@/lib/local-store";
+import { dueQuestionIds, wrongQuestionIds, checkInToday } from "@/lib/local-store";
 import { daysBetween, pct } from "@/lib/utils";
+import DailyKickoff from "@/components/DailyKickoff";
 import {
   Library, PencilLine, Timer, CalendarClock, BarChart3, GitBranch,
-  Network, MessageCircleQuestion, Layers, CalendarRange, ScrollText, Flame, Trophy, Target,
+  Network, MessageCircleQuestion, Layers, CalendarRange, ScrollText, Flame, Trophy, Target, CalendarCheck,
+  LayoutGrid, ChevronDown,
 } from "lucide-react";
 
-const TILES = [
-  { href: "/bank", label: "문제은행", desc: "기출 업로드·AI 분석", icon: Library },
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// 메인 3개 — 핵심 학습 흐름만 노출
+const MAIN_TILES = [
+  { href: "/bank", label: "기출문제", desc: "기출 문항 열람·풀이", icon: Library },
+  { href: "/review", label: "오답노트", desc: "틀린 문제 간격반복 복습", icon: CalendarClock },
+  { href: "/timeline", label: "연대표", desc: "시대 흐름 한눈에", icon: GitBranch },
+];
+
+// 추가기능 — 필요 시 펼쳐 보는 나머지 도구
+const MORE_TILES = [
   { href: "/study", label: "문제풀이", desc: "시대·인물·유형별 학습", icon: PencilLine },
   { href: "/exam", label: "모의고사", desc: "50문항 실전·자동채점", icon: Timer },
-  { href: "/review", label: "오답·복습", desc: "간격반복(SRS) 복습", icon: CalendarClock },
   { href: "/saryo", label: "사료 트레이닝", desc: "자료 제시형 집중", icon: ScrollText },
   { href: "/flashcards", label: "빈출 암기카드", desc: "핵심 키워드 플래시카드", icon: Layers },
   { href: "/analytics", label: "통계·경향", desc: "취약영역·출제경향", icon: BarChart3 },
-  { href: "/timeline", label: "연표", desc: "시대 흐름 한눈에", icon: GitBranch },
   { href: "/network", label: "관계망", desc: "인물·사건 연결", icon: Network },
   { href: "/plan", label: "학습 플랜", desc: "D-day 맞춤 커리큘럼", icon: CalendarRange },
   { href: "/tutor", label: "AI 튜터", desc: "질문하면 바로 해설", icon: MessageCircleQuestion },
@@ -30,12 +42,26 @@ interface ReleaseMeta {
 }
 
 export default function Home() {
-  const { store, ready } = useStore();
+  const { store, ready, update } = useStore();
+  const router = useRouter();
   const [rel, setRel] = useState<ReleaseMeta | null>(null);
+  const [kickoff, setKickoff] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     fetch("/api/releases").then((r) => r.json()).then(setRel).catch(() => {});
   }, []);
+
+  // 오늘 첫 방문이면 출석 체크 + 시작 팝업 (하루 1회)
+  useEffect(() => {
+    if (!ready) return;
+    const today = todayStr();
+    if (store.attendance.lastDay !== today) {
+      update((s) => checkInToday(s, today));
+      setKickoff(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   const stats = useMemo(() => {
     const total = store.attempts.length;
@@ -50,6 +76,14 @@ export default function Home() {
 
   return (
     <div className="animate-in space-y-6">
+      {kickoff && (
+        <DailyKickoff
+          attendance={store.attendance}
+          onSolve={() => { setKickoff(false); router.push("/study?warmup=1"); }}
+          onClose={() => setKickoff(false)}
+        />
+      )}
+
       {/* 히어로 */}
       <section className="card overflow-hidden">
         <div className="bg-gradient-to-br from-primary/15 to-accent/10 p-6 sm:p-8">
@@ -78,7 +112,8 @@ export default function Home() {
       </Link>
 
       {/* 요약 지표 */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Metric icon={<CalendarCheck size={18} className="text-accent" />} label="누적 출석" value={ready ? `${store.attendance.total}일` : "—"} href="/plan" />
         <Metric icon={<Target size={18} />} label="D-day" value={
           ready && stats.dday !== null ? (stats.dday >= 0 ? `D-${stats.dday}` : "지남") : "미설정"
         } href="/plan" />
@@ -99,26 +134,44 @@ export default function Home() {
         </section>
       )}
 
-      {/* 기능 타일 */}
+      {/* 학습 도구 — 메인 3개 + 추가기능 */}
       <section>
         <h2 className="mb-3 text-lg font-semibold">학습 도구</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {TILES.map(({ href, label, desc, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="card card-hover group flex flex-col gap-2 p-4"
-            >
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/12 text-primary">
-                <Icon size={20} />
-              </span>
-              <span className="font-semibold">{label}</span>
-              <span className="text-xs text-muted">{desc}</span>
-            </Link>
-          ))}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {MAIN_TILES.map((t) => <FeatureTile key={t.href} {...t} />)}
+          <button
+            onClick={() => setShowMore((v) => !v)}
+            className="card card-hover group flex flex-col gap-2 p-4 text-left"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/12 text-primary">
+              <LayoutGrid size={20} />
+            </span>
+            <span className="flex items-center gap-1 font-semibold">
+              추가기능 <ChevronDown size={15} className={showMore ? "rotate-180 transition-transform text-muted" : "transition-transform text-muted"} />
+            </span>
+            <span className="text-xs text-muted">{showMore ? "접기" : "나머지 도구 모음"}</span>
+          </button>
         </div>
+
+        {showMore && (
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {MORE_TILES.map((t) => <FeatureTile key={t.href} {...t} />)}
+          </div>
+        )}
       </section>
     </div>
+  );
+}
+
+function FeatureTile({ href, label, desc, icon: Icon }: { href: string; label: string; desc: string; icon: React.ComponentType<{ size?: number }> }) {
+  return (
+    <Link href={href} className="card card-hover group flex flex-col gap-2 p-4">
+      <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/12 text-primary">
+        <Icon size={20} />
+      </span>
+      <span className="font-semibold">{label}</span>
+      <span className="text-xs text-muted">{desc}</span>
+    </Link>
   );
 }
 
