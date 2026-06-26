@@ -21,6 +21,7 @@ function StudyPage() {
 
   const params = useSearchParams();
   const factId = params.get("factId");
+  const warmup = params.get("warmup") === "1";
   const [factTitle, setFactTitle] = useState<string>("");
 
   useEffect(() => { fetchRounds().then(setRounds); }, []);
@@ -38,6 +39,16 @@ function StudyPage() {
       setLoading(false);
     });
   }, [factId]);
+
+  // 오늘의 워밍업(warmup=1) 진입 시 랜덤 5문제 자동 시작
+  useEffect(() => {
+    if (!warmup) return;
+    setLoading(true);
+    fetchQuestions({ limit: 5, random: true }).then((qs) => {
+      setQuestions(qs);
+      setLoading(false);
+    });
+  }, [warmup]);
 
   async function start() {
     setLoading(true);
@@ -61,13 +72,18 @@ function StudyPage() {
             <p className="text-sm text-muted">연표 <b className="text-foreground">{factTitle}</b> 관련 문제 {questions.length}개</p>
             <a href="/timeline" className="text-sm text-muted hover:text-foreground">← 연표로</a>
           </div>
+        ) : warmup ? (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted">☀️ <b className="text-foreground">오늘의 워밍업</b> · 랜덤 {questions.length}문제</p>
+            <a href="/" className="text-sm text-muted hover:text-foreground">← 홈으로</a>
+          </div>
         ) : (
           <button className="text-sm text-muted hover:text-foreground" onClick={() => setQuestions(null)}>
             ← 조건 다시 설정
           </button>
         )}
         {questions.length === 0 ? (
-          <div className="card p-8 text-center text-muted">이 연표에 연결된 문제가 아직 없습니다.</div>
+          <div className="card p-8 text-center text-muted">출제할 문제가 없습니다. 문제은행을 확인하세요.</div>
         ) : (
           <StudyRunner questions={questions} />
         )}
@@ -75,7 +91,7 @@ function StudyPage() {
     );
   }
 
-  if (factId && loading) {
+  if ((factId || warmup) && loading) {
     return <div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>;
   }
 

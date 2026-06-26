@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/useStore";
-import { dueQuestionIds, wrongQuestionIds } from "@/lib/local-store";
+import { dueQuestionIds, wrongQuestionIds, checkInToday } from "@/lib/local-store";
 import { daysBetween, pct } from "@/lib/utils";
+import DailyKickoff from "@/components/DailyKickoff";
 import {
   Library, PencilLine, Timer, CalendarClock, BarChart3, GitBranch,
-  Network, MessageCircleQuestion, Layers, CalendarRange, ScrollText, Flame, Trophy, Target,
+  Network, MessageCircleQuestion, Layers, CalendarRange, ScrollText, Flame, Trophy, Target, CalendarCheck,
 } from "lucide-react";
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const TILES = [
   { href: "/bank", label: "문제은행", desc: "기출 업로드·AI 분석", icon: Library },
@@ -30,12 +36,25 @@ interface ReleaseMeta {
 }
 
 export default function Home() {
-  const { store, ready } = useStore();
+  const { store, ready, update } = useStore();
+  const router = useRouter();
   const [rel, setRel] = useState<ReleaseMeta | null>(null);
+  const [kickoff, setKickoff] = useState(false);
 
   useEffect(() => {
     fetch("/api/releases").then((r) => r.json()).then(setRel).catch(() => {});
   }, []);
+
+  // 오늘 첫 방문이면 출석 체크 + 시작 팝업 (하루 1회)
+  useEffect(() => {
+    if (!ready) return;
+    const today = todayStr();
+    if (store.attendance.lastDay !== today) {
+      update((s) => checkInToday(s, today));
+      setKickoff(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   const stats = useMemo(() => {
     const total = store.attempts.length;
@@ -50,6 +69,14 @@ export default function Home() {
 
   return (
     <div className="animate-in space-y-6">
+      {kickoff && (
+        <DailyKickoff
+          attendance={store.attendance}
+          onSolve={() => { setKickoff(false); router.push("/study?warmup=1"); }}
+          onClose={() => setKickoff(false)}
+        />
+      )}
+
       {/* 히어로 */}
       <section className="card overflow-hidden">
         <div className="bg-gradient-to-br from-primary/15 to-accent/10 p-6 sm:p-8">
@@ -78,7 +105,8 @@ export default function Home() {
       </Link>
 
       {/* 요약 지표 */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Metric icon={<CalendarCheck size={18} className="text-accent" />} label="누적 출석" value={ready ? `${store.attendance.total}일` : "—"} href="/plan" />
         <Metric icon={<Target size={18} />} label="D-day" value={
           ready && stats.dday !== null ? (stats.dday >= 0 ? `D-${stats.dday}` : "지남") : "미설정"
         } href="/plan" />
