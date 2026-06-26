@@ -3,7 +3,7 @@ import { candidateFacts, sanitizeFactIds } from "./link-facts";
 import type { FactDTO, QuestionDTO } from "@/lib/types";
 
 function fact(id: string, era: string, year: number): FactDTO {
-  return { id, era, year, title: id, kind: "event", body: "", relatedTo: [], period: null, category: null, importance: null, keywords: [], prevFactIds: [], nextFactIds: [] };
+  return { id, era, year, title: id, kind: "event", body: "", relatedTo: [], period: null, category: null, importance: null, keywords: [], prevFactIds: [], nextFactIds: [], detail: [] };
 }
 function question(era: string): QuestionDTO {
   return { id: "q1", level: "SIMHWA", examRound: null, examYear: null, number: null, stem: "", passage: null, imageUrl: null, imageDescription: null, explanation: null, answerIndex: 0, era, topics: [], qType: "기타", difficulty: null, source: "MANUAL", factIds: [], choices: [] };

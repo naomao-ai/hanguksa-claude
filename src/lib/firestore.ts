@@ -298,6 +298,7 @@ function docToFact(id: string, d: FirebaseFirestore.DocumentData): FactDTO {
     keywords: Array.isArray(d.keywords) ? d.keywords : [],
     prevFactIds: Array.isArray(d.prevFactIds) ? d.prevFactIds : [],
     nextFactIds: Array.isArray(d.nextFactIds) ? d.nextFactIds : [],
+    detail: Array.isArray(d.detail) ? d.detail : [],
   };
 }
 
@@ -333,6 +334,11 @@ export async function setFactRelations(
   nextFactIds: string[]
 ): Promise<void> {
   await db.collection(COL.facts).doc(id).update({ prevFactIds, nextFactIds });
+}
+
+/** 연표 항목의 상세 설명(단문 배열) 갱신 (AI 생성용) */
+export async function setFactDetail(id: string, detail: string[]): Promise<void> {
+  await db.collection(COL.facts).doc(id).update({ detail });
 }
 
 // ───────────────────────── Video ─────────────────────────

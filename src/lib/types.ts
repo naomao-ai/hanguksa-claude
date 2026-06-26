@@ -43,6 +43,8 @@ export interface FactDTO {
   prevFactIds: string[];
   /** 이후(결과·영향) 연표 문서 id */
   nextFactIds: string[];
+  /** 상세 설명 — 짧은 단문(불릿) 배열. 요약(body) 아래에 표시 */
+  detail: string[];
   /** 이 연표에 연결된 문제 수 (getFacts가 채움) */
   questionCount?: number;
 }

@@ -3,7 +3,7 @@ import { candidateFactsForFact, sanitizeRelations } from "./link-relations";
 import type { FactDTO } from "@/lib/types";
 
 function fact(id: string, era: string, year: number): FactDTO {
-  return { id, era, year, title: id, kind: "event", body: "", relatedTo: [], period: null, category: null, importance: null, keywords: [], prevFactIds: [], nextFactIds: [] };
+  return { id, era, year, title: id, kind: "event", body: "", relatedTo: [], period: null, category: null, importance: null, keywords: [], prevFactIds: [], nextFactIds: [], detail: [] };
 }
 
 describe("candidateFactsForFact", () => {

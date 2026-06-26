@@ -97,7 +97,7 @@ export default function TimelinePage() {
       {/* 상세 패널 */}
       {active && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={() => setActive(null)}>
-          <div className="card m-4 w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="card m-4 max-h-[82vh] w-full max-w-md overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
             <span
               className="mb-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
               style={{ background: eraColor(active.era) }}
@@ -106,6 +106,19 @@ export default function TimelinePage() {
             </span>
             <h3 className="mb-2 text-xl font-bold">{active.title}</h3>
             <p className="mb-3 leading-relaxed">{active.body}</p>
+            {active.detail.length > 0 && (
+              <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <p className="mb-1.5 text-xs font-semibold text-primary">상세 설명</p>
+                <ul className="space-y-1">
+                  {active.detail.map((d, i) => (
+                    <li key={i} className="flex gap-1.5 text-sm leading-relaxed">
+                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
+                      <span>{d}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="mb-3 flex flex-wrap gap-1.5 text-xs">
               {active.category && <span className="rounded-full bg-primary/12 px-2 py-0.5 text-primary">{active.category}</span>}
               {active.importance ? <span className="rounded-full bg-accent/12 px-2 py-0.5 text-accent">{"★".repeat(active.importance)}</span> : null}

@@ -56,7 +56,7 @@ export default function AdminPage() {
           { k: "manage", label: "문항 관리", icon: Trash2 },
           { k: "video", label: "공부영상", icon: MonitorPlay },
           { k: "factlink", label: "연표 연결", icon: Link2 },
-          { k: "relation", label: "관계망", icon: Share2 },
+          { k: "relation", label: "연표 보강", icon: Share2 },
         ].map(({ k, label, icon: Icon }) => (
           <button key={k} onClick={() => setTab(k as Tab)}
             className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${tab === k ? "border-primary text-primary" : "border-transparent text-muted hover:text-foreground"}`}>

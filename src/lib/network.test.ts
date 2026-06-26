@@ -3,7 +3,7 @@ import { buildFactMap, resolveRelations, pushPath } from "./network";
 import type { FactDTO } from "@/lib/types";
 
 function fact(id: string, prev: string[] = [], next: string[] = []): FactDTO {
-  return { id, era: "goryeo", year: 1000, title: id, kind: "event", body: "", relatedTo: [], period: null, category: null, importance: null, keywords: [], prevFactIds: prev, nextFactIds: next };
+  return { id, era: "goryeo", year: 1000, title: id, kind: "event", body: "", relatedTo: [], period: null, category: null, importance: null, keywords: [], prevFactIds: prev, nextFactIds: next, detail: [] };
 }
 
 describe("buildFactMap", () => {
