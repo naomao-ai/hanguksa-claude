@@ -22,7 +22,11 @@ const COL = {
 interface StoredChoice {
   order: number;
   text: string;
+  imageUrl?: string | null;
 }
+
+/** 선지 입력: 순수 텍스트(기존/AI) 또는 텍스트+이미지 객체 */
+export type ChoiceInput = string | { text?: string; imageUrl?: string | null };
 
 function docToQuestion(id: string, d: FirebaseFirestore.DocumentData): QuestionDTO {
   const choices: StoredChoice[] = Array.isArray(d.choices) ? d.choices : [];
@@ -46,7 +50,7 @@ function docToQuestion(id: string, d: FirebaseFirestore.DocumentData): QuestionD
     factIds: Array.isArray(d.factIds) ? d.factIds : [],
     choices: [...choices]
       .sort((a, b) => a.order - b.order)
-      .map((c, i) => ({ id: String(i), order: c.order, text: c.text })),
+      .map((c, i) => ({ id: String(i), order: c.order, text: c.text, imageUrl: c.imageUrl ?? null })),
   };
 }
 
@@ -121,7 +125,7 @@ export interface NewQuestion {
   passage?: string | null;
   imageUrl?: string | null;
   imageDescription?: string | null;
-  choices: string[];
+  choices: ChoiceInput[];
   answerIndex: number;
   explanation?: string | null;
   era: string;
@@ -138,6 +142,15 @@ export interface NewQuestion {
 async function buildQuestionDoc(id: string, q: NewQuestion, defaultSource: string) {
   let imageUrl = q.imageUrl ?? null;
   if (imageUrl) imageUrl = await uploadImageFromDataUrl(imageUrl, id);
+  // 선지: 문자열 또는 {text,imageUrl}. 이미지 data URL은 Storage로 업로드.
+  const choices = await Promise.all(
+    (q.choices ?? []).map(async (c, order) => {
+      const text = typeof c === "string" ? c : (c.text ?? "");
+      let cImg = typeof c === "string" ? null : (c.imageUrl ?? null);
+      if (cImg) cImg = await uploadImageFromDataUrl(cImg, `${id}-c${order}`);
+      return { order, text, imageUrl: cImg };
+    })
+  );
   return {
     level: q.level === "GIBON" ? "GIBON" : "SIMHWA",
     examRound: q.examRound ?? null,
@@ -154,7 +167,7 @@ async function buildQuestionDoc(id: string, q: NewQuestion, defaultSource: strin
     qType: q.qType || "기타",
     difficulty: q.difficulty ?? null,
     source: q.source ?? defaultSource,
-    choices: q.choices.map((text, order) => ({ order, text })),
+    choices,
     factIds: Array.isArray(q.factIds) ? q.factIds : [],
     createdAt: Timestamp.now(),
   };
@@ -165,6 +178,21 @@ export async function createQuestion(q: NewQuestion): Promise<QuestionDTO> {
   const data = await buildQuestionDoc(ref.id, q, "MANUAL");
   await ref.set(data);
   return docToQuestion(ref.id, data);
+}
+
+/** 기존 문항 전체 수정 (편집기). createdAt·source는 보존. */
+export async function updateQuestion(id: string, q: NewQuestion): Promise<QuestionDTO | null> {
+  const ref = db.collection(COL.questions).doc(id);
+  const prev = await ref.get();
+  if (!prev.exists) return null;
+  const prevSource = prev.data()?.source ?? "MANUAL";
+  const data = await buildQuestionDoc(id, { ...q, source: q.source ?? prevSource }, prevSource);
+  // createdAt은 최초값 유지
+  const patch: Record<string, unknown> = { ...data };
+  delete patch.createdAt;
+  await ref.set(patch, { merge: true });
+  const merged = { ...prev.data(), ...patch };
+  return docToQuestion(id, merged as FirebaseFirestore.DocumentData);
 }
 
 /** 다량 생성 (UPLOAD) — 이미지 data URL은 Storage로 업로드 후 URL 저장 */

@@ -144,9 +144,15 @@ export default function ExamRunner({
                 answers[cur] === i ? "border-primary bg-primary/10" : "hover:bg-surface-2"
               )}
             >
-              <span className={cn("grid h-6 w-6 place-items-center rounded-full border text-sm font-bold",
+              <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-sm font-bold",
                 answers[cur] === i && "border-primary text-primary")}>{i + 1}</span>
-              <span>{c.text}</span>
+              <span className="flex flex-col gap-1">
+                {c.text && <span>{c.text}</span>}
+                {c.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={c.imageUrl} alt={`선지 ${i + 1}`} className="max-h-40 rounded border" />
+                )}
+              </span>
             </button>
           ))}
         </div>

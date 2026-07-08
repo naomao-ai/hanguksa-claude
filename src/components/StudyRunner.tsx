@@ -192,7 +192,13 @@ export default function StudyRunner({ questions }: { questions: QuestionDTO[] })
                 >
                   {i + 1}
                 </span>
-                <span className="flex-1">{c.text}</span>
+                <span className="flex flex-1 flex-col gap-1">
+                  {c.text && <span>{c.text}</span>}
+                  {c.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.imageUrl} alt={`선지 ${i + 1}`} className="max-h-40 rounded border" />
+                  )}
+                </span>
                 {revealed && isAnswer && <CheckCircle2 size={18} className="text-green-600" />}
                 {revealed && isSelected && !isAnswer && <XCircle size={18} className="text-red-600" />}
               </button>

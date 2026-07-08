@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import UploadPanel from "@/components/admin/UploadPanel";
-import ManualForm from "@/components/admin/ManualForm";
+import QuestionEditor from "@/components/admin/QuestionEditor";
 import VideoForm from "@/components/admin/VideoForm";
 import FactLinkPanel from "@/components/admin/FactLinkPanel";
 import RelationLinkPanel from "@/components/admin/RelationLinkPanel";
@@ -10,7 +10,7 @@ import { useUI } from "@/components/ui/UIProvider";
 import { fetchQuestions } from "@/lib/api";
 import { eraLabel, levelLabel, LEVELS } from "@/lib/domain";
 import type { QuestionDTO } from "@/lib/types";
-import { Loader2, Lock, LogOut, Sparkles, Plus, Rocket, Trash2, ShieldAlert, MonitorPlay, Link2, Share2 } from "lucide-react";
+import { Loader2, Lock, LogOut, Sparkles, Plus, Rocket, Trash2, ShieldAlert, MonitorPlay, Link2, Share2, Pencil } from "lucide-react";
 
 type Tab = "upload" | "manual" | "release" | "manage" | "video" | "factlink" | "relation";
 
@@ -68,7 +68,7 @@ export default function AdminPage() {
       {tab === "upload" && (
         <UploadPanel onSaved={(n) => { setLastAdded(n); toast(`${n}문항 저장됨. '업데이트 발행'에서 변경 내역을 공지하세요.`, "success"); setTab("release"); }} />
       )}
-      {tab === "manual" && <ManualForm onSaved={() => { setLastAdded((x) => x + 1); toast("문항이 저장되었습니다.", "success"); }} />}
+      {tab === "manual" && <QuestionEditor onSaved={() => { setLastAdded((x) => x + 1); }} />}
       {tab === "release" && <ReleaseForm defaultAdded={lastAdded} onPublished={() => { setLastAdded(0); }} />}
       {tab === "manage" && <ManageList />}
       {tab === "video" && <VideoForm />}
@@ -197,6 +197,7 @@ function ManageList() {
   const { toast, confirm } = useUI();
   const [questions, setQuestions] = useState<QuestionDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<QuestionDTO | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -215,6 +216,17 @@ function ManageList() {
 
   if (loading) return <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted" /></div>;
 
+  // 편집 중이면 편집기만 표시
+  if (editing) {
+    return (
+      <QuestionEditor
+        initial={editing}
+        onSaved={() => { setEditing(null); load(); }}
+        onCancel={() => setEditing(null)}
+      />
+    );
+  }
+
   return (
     <ul className="space-y-2">
       {questions.map((q) => (
@@ -222,10 +234,12 @@ function ManageList() {
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex flex-wrap gap-1 text-xs text-muted">
               <span>{levelLabel(q.level)}</span>·<span>{eraLabel(q.era)}</span>{q.examRound ? <>·<span>{q.examRound}회</span></> : null}·<span>{q.source}</span>
+              {q.choices.some((c) => c.imageUrl) && <span className="text-accent">·그림선지</span>}
             </div>
             <p className="line-clamp-2 text-sm">{q.stem}</p>
           </div>
-          <button onClick={() => del(q.id)} className="shrink-0 text-muted hover:text-red-500"><Trash2 size={16} /></button>
+          <button onClick={() => setEditing(q)} title="편집" className="shrink-0 text-muted hover:text-primary"><Pencil size={16} /></button>
+          <button onClick={() => del(q.id)} title="삭제" className="shrink-0 text-muted hover:text-red-500"><Trash2 size={16} /></button>
         </li>
       ))}
     </ul>

@@ -20,7 +20,7 @@ export interface QuestionDTO {
   source: string;
   /** 연결된 연표(facts) 문서 ID 배열 */
   factIds: string[];
-  choices: { id: string; order: number; text: string }[];
+  choices: { id: string; order: number; text: string; imageUrl: string | null }[];
 }
 
 export interface FactDTO {
