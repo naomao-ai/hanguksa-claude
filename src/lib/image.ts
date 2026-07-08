@@ -15,6 +15,8 @@ export interface FigureAnchors {
   scoreMarkerY?: number | null;
   /** 보기 ①(숫자 1번) 바로 위의 세로 위치 (0~1) — 그림 끝 */
   choicesTopY?: number | null;
+  /** 문항 전체 영역 — 모든 크롭을 이 안으로 클램프 (2단 레이아웃 가로 오염 방지) */
+  questionBox?: NormalizedBox | null;
 }
 
 /** 배점 아래·보기 위로부터의 세로 여유 (이미지 높이 비율) — 텍스트 제외용 안쪽 마진 */
@@ -25,11 +27,39 @@ const SAFE_PADDING = 0.02;
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 /**
+ * AI가 준 문항 영역이 신뢰할 만한지 검증한다.
+ * 문항 영역치고 지나치게 작은 상자는 좌표 오류로 보고 무시(null)한다.
+ */
+function validQuestionBox(b?: NormalizedBox | null): NormalizedBox | null {
+  if (!b) return null;
+  if (b.width < 0.1 || b.height < 0.05) return null;
+  return b;
+}
+
+/** box를 container 영역과 교차(클램프)한다. container가 없으면 그대로 반환 */
+export function clampBoxWithin(
+  box: NormalizedBox,
+  container?: NormalizedBox | null
+): NormalizedBox | null {
+  if (!container) return box;
+  const x1 = Math.max(clamp01(box.x), clamp01(container.x));
+  const y1 = Math.max(clamp01(box.y), clamp01(container.y));
+  const x2 = Math.min(clamp01(box.x + box.width), clamp01(container.x + container.width));
+  const y2 = Math.min(clamp01(box.y + box.height), clamp01(container.y + container.height));
+  const width = x2 - x1;
+  const height = y2 - y1;
+  if (width < 0.02 || height < 0.02) return null;
+  return { x: x1, y: y1, width, height };
+}
+
+/**
  * 그림의 크롭 박스를 결정한다.
  * 세로는 한능검 배치(발문+배점 → 그림 → 보기)에 따라
  * scoreMarkerY(배점 바로 아래)~choicesTopY(보기 ① 바로 위) 사이로 정량 계산하고,
  * 가로는 AI의 imageBox(x/width)에 ±2% 안전 패딩을 적용한다.
  * 앵커가 없으면 imageBox 전체에 상하좌우 ±2% 패딩을 적용해 폴백한다.
+ * questionBox(문항 전체 영역)가 있으면 가로 폴백을 그 단(컬럼) 범위로 잡고,
+ * 최종 크롭을 그 안으로 클램프해 2단 시험지에서 옆 단 침범을 막는다.
  */
 export function resolveFigureBox(q: FigureAnchors): NormalizedBox | null {
   const hasAnchors =
@@ -39,9 +69,13 @@ export function resolveFigureBox(q: FigureAnchors): NormalizedBox | null {
 
   if (!q.imageBox && !hasAnchors) return null;
 
-  // 가로: imageBox ± 안전 패딩(외곽 잘림 방지). 없으면 본문 컬럼 추정
-  const xLeft = q.imageBox ? clamp01(q.imageBox.x - SAFE_PADDING) : 0.04;
-  const xRight = q.imageBox ? clamp01(q.imageBox.x + q.imageBox.width + SAFE_PADDING) : 0.96;
+  const qBox = validQuestionBox(q.questionBox);
+
+  // 가로: imageBox ± 안전 패딩(외곽 잘림 방지). 없으면 문항 영역(단) → 본문 컬럼 순으로 추정
+  const fbLeft = qBox ? clamp01(qBox.x + 0.01) : 0.04;
+  const fbRight = qBox ? clamp01(qBox.x + qBox.width - 0.01) : 0.96;
+  const xLeft = q.imageBox ? clamp01(q.imageBox.x - SAFE_PADDING) : fbLeft;
+  const xRight = q.imageBox ? clamp01(q.imageBox.x + q.imageBox.width + SAFE_PADDING) : fbRight;
   const x = xLeft;
   const width = xRight - xLeft;
 
@@ -59,7 +93,22 @@ export function resolveFigureBox(q: FigureAnchors): NormalizedBox | null {
   }
 
   if (width < 0.02 || height < 0.02) return null;
-  return { x, y, width, height };
+  // 문항 영역 안으로 최종 클램프 (2단 가로 오염 방지)
+  return clampBoxWithin({ x, y, width, height }, qBox);
+}
+
+/**
+ * 그림 선지 하나의 크롭 박스를 결정한다.
+ * AI가 준 선지 imageBox에 상하좌우 ±2% 안전 패딩(외곽 잘림 방지)을 적용하고,
+ * 너무 작은(잘못된) 상자는 null로 떨어뜨린다. 세로 앵커는 쓰지 않는다.
+ * questionBox가 있으면 그 문항 영역 안으로 클램프한다.
+ */
+export function resolveChoiceBox(
+  box: NormalizedBox | null | undefined,
+  questionBox?: NormalizedBox | null
+): NormalizedBox | null {
+  if (!box) return null;
+  return resolveFigureBox({ imageBox: box, questionBox });
 }
 
 /** Claude로 보낼 이미지 (다운스케일 후) */
@@ -97,6 +146,67 @@ export function downscaleForApi(
         ctx.drawImage(img, 0, 0, w, h);
         const out = canvas.toDataURL("image/jpeg", quality);
         resolve({ media_type: "image/jpeg", data: out.split(",")[1] });
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
+    img.src = dataUrl;
+  });
+}
+
+/** data URL 이미지의 원본 픽셀 크기 */
+export function getImageSize(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error("이미지를 불러오지 못했습니다."));
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * 2단 시험지를 좌/우 반으로 분할한다 (약간 겹침).
+ * 문항당 유효 해상도를 2배로 높이고 2단 좌표 혼선을 없앤다.
+ */
+export async function splitColumns(
+  dataUrl: string,
+  overlap = 0.01
+): Promise<{ left: string; right: string }> {
+  const [left, right] = await Promise.all([
+    cropImageRegion(dataUrl, { x: 0, y: 0, width: 0.5 + overlap, height: 1 }),
+    cropImageRegion(dataUrl, { x: 0.5 - overlap, y: 0, width: 0.5 + overlap, height: 1 }),
+  ]);
+  return { left, right };
+}
+
+/**
+ * data URL 이미지를 다운스케일해 이진 잉크 맵으로 변환한다 (스냅 보정용).
+ * targetWidth 픽셀 폭 기준으로 줄여 계산량을 억제한다.
+ */
+export async function loadInkMap(
+  dataUrl: string,
+  targetWidth = 700
+): Promise<import("./snap").InkMap> {
+  const { buildInkMap } = await import("./snap");
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, targetWidth / img.naturalWidth);
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("canvas 컨텍스트를 만들 수 없습니다."));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        const px = ctx.getImageData(0, 0, w, h);
+        resolve(buildInkMap(px.data, w, h));
       } catch (e) {
         reject(e);
       }
