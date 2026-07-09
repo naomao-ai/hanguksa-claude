@@ -9,6 +9,9 @@ import { initialSrs, reviewSrs, toGrade, type SrsState } from "./srs";
 
 const KEY = "hanguksa:v1";
 
+/** 풀이 맥락 — 실전(모의고사) 정답률과 복습 정답률을 구분하기 위함 */
+export type AttemptSource = "study" | "review" | "exam" | "warmup";
+
 export interface Attempt {
   questionId: string;
   correct: boolean;
@@ -17,6 +20,21 @@ export interface Attempt {
   era: string;
   qType: string;
   level: string;
+  /** 풀이 맥락 (없으면 구버전 기록) */
+  source?: AttemptSource;
+}
+
+/** 모의고사 1회 결과 — "나 지금 합격권인가?"의 근거 데이터 */
+export interface ExamRecord {
+  ts: number;
+  level: "SIMHWA" | "GIBON";
+  /** 100점 만점 환산 점수 */
+  score100: number;
+  correct: number;
+  total: number;
+  /** 합격 급수 (불합격이면 null) */
+  grade: number | null;
+  passed: boolean;
 }
 
 export interface Settings {
@@ -49,6 +67,8 @@ export interface Store {
   settings: Settings;
   badges: string[];
   attendance: Attendance;
+  /** 모의고사 응시 이력 (시간순) */
+  examHistory: ExamRecord[];
 }
 
 function emptyStore(): Store {
@@ -61,6 +81,7 @@ function emptyStore(): Store {
     settings: { examDate: null, targetLevel: "SIMHWA", targetGrade: 1 },
     badges: [],
     attendance: { lastDay: null, total: 0, current: 0, longest: 0 },
+    examHistory: [],
   };
 }
 
@@ -84,6 +105,20 @@ export function saveStore(s: Store) {
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** 모의고사 결과 1회 기록 — 시간순 이력에 추가 (순수 함수) */
+export function recordExamResult(
+  s: Store,
+  r: Omit<ExamRecord, "ts">,
+  now = Date.now()
+): Store {
+  return { ...s, examHistory: [...s.examHistory, { ...r, ts: now }] };
+}
+
+/** 가장 최근 모의고사 기록 (없으면 null) */
+export function latestExam(s: Store): ExamRecord | null {
+  return s.examHistory.length ? s.examHistory[s.examHistory.length - 1] : null;
 }
 
 /** 풀이 결과 1건 기록 — attempts, SRS, 스트릭, 배지를 함께 갱신 */
@@ -177,6 +212,30 @@ export function badgeLabel(id: string): string {
 }
 
 export const ALL_BADGES = BADGE_RULES.map((b) => ({ id: b.id, label: b.label }));
+
+/**
+ * 정답률이 가장 낮은 시대 키 (minAttempts회 이상 푼 시대 중). 없으면 null.
+ * 워밍업·추천 출제를 취약 영역에 가중하기 위한 근거.
+ */
+export function weakestEra(s: Store, minAttempts = 3): string | null {
+  const m: Record<string, { c: number; n: number }> = {};
+  for (const a of s.attempts) {
+    m[a.era] ??= { c: 0, n: 0 };
+    m[a.era].n++;
+    if (a.correct) m[a.era].c++;
+  }
+  let worst: string | null = null;
+  let worstAcc = Infinity;
+  for (const [era, v] of Object.entries(m)) {
+    if (v.n < minAttempts) continue;
+    const acc = v.c / v.n;
+    if (acc < worstAcc) {
+      worstAcc = acc;
+      worst = era;
+    }
+  }
+  return worst;
+}
 
 /** 오늘 복습 대상(due) questionId 목록 */
 export function dueQuestionIds(s: Store, now = Date.now()): string[] {

@@ -34,7 +34,7 @@ export default function ReviewPage() {
         <button className="text-sm text-muted hover:text-foreground" onClick={() => { setQuestions(null); setMode(null); }}>
           ← 복습 메뉴로
         </button>
-        <StudyRunner questions={questions} />
+        <StudyRunner questions={questions} source="review" />
       </div>
     );
   }

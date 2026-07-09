@@ -4,22 +4,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/useStore";
-import { dueQuestionIds, wrongQuestionIds, checkInToday } from "@/lib/local-store";
-import { daysBetween, pct } from "@/lib/utils";
+import { dueQuestionIds, checkInToday, latestExam } from "@/lib/local-store";
+import { daysBetween } from "@/lib/utils";
 import DailyKickoff from "@/components/DailyKickoff";
 import {
   Library, PencilLine, Timer, CalendarClock, BarChart3, GitBranch,
   Network, MessageCircleQuestion, Layers, CalendarRange, ScrollText, Flame, Trophy, Target, CalendarCheck,
-  LayoutGrid, ChevronDown,
+  ChevronDown, CheckCircle2, ArrowRight, ClipboardCheck,
 } from "lucide-react";
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// 메인 3개 — 핵심 학습 흐름만 노출
+// 메인 4개 — 3개월 수험생의 핵심 루프: 기출 풀고 → 실전 점검 → 오답 정착 → 흐름 정리
 const MAIN_TILES = [
   { href: "/bank", label: "기출문제", desc: "기출 문항 열람·풀이", icon: Library },
+  { href: "/exam", label: "모의고사", desc: "50문항 실전·합격 판정", icon: Timer },
   { href: "/review", label: "오답노트", desc: "틀린 문제 간격반복 복습", icon: CalendarClock },
   { href: "/timeline", label: "연대표", desc: "시대 흐름 한눈에", icon: GitBranch },
 ];
@@ -27,7 +28,6 @@ const MAIN_TILES = [
 // 추가기능 — 필요 시 펼쳐 보는 나머지 도구
 const MORE_TILES = [
   { href: "/study", label: "문제풀이", desc: "시대·인물·유형별 학습", icon: PencilLine },
-  { href: "/exam", label: "모의고사", desc: "50문항 실전·자동채점", icon: Timer },
   { href: "/saryo", label: "사료 트레이닝", desc: "자료 제시형 집중", icon: ScrollText },
   { href: "/flashcards", label: "빈출 암기카드", desc: "핵심 키워드 플래시카드", icon: Layers },
   { href: "/analytics", label: "통계·경향", desc: "취약영역·출제경향", icon: BarChart3 },
@@ -64,15 +64,23 @@ export default function Home() {
   }, [ready]);
 
   const stats = useMemo(() => {
-    const total = store.attempts.length;
-    const correct = store.attempts.filter((a) => a.correct).length;
     const due = dueQuestionIds(store).length;
-    const wrong = wrongQuestionIds(store).length;
     const dday = store.settings.examDate
       ? daysBetween(new Date(), new Date(store.settings.examDate))
       : null;
-    return { total, correct, due, wrong, dday };
+    return { due, dday };
   }, [store]);
+
+  const exam = ready ? latestExam(store) : null;
+  const solvedToday = ready && store.streak.studyDays.includes(todayStr());
+  // 최근 7일 내 모의고사가 없으면 실전 점검을 권한다
+  const examStale = !exam || Date.now() - exam.ts > 7 * 86_400_000;
+  const finalStretch = stats.dday !== null && stats.dday >= 0 && stats.dday <= 7;
+
+  // 시험이 2주 이내면 사료·암기카드 등 막판 도구를 바로 펼쳐 보인다
+  useEffect(() => {
+    if (ready && stats.dday !== null && stats.dday >= 0 && stats.dday <= 14) setShowMore(true);
+  }, [ready, stats.dday]);
 
   return (
     <div className="animate-in space-y-6">
@@ -84,32 +92,86 @@ export default function Home() {
         />
       )}
 
-      {/* 히어로 */}
+      {/* 상황판 — D-day · 합격권 · 오늘 할 일 */}
       <section className="card overflow-hidden">
-        <div className="bg-gradient-to-br from-primary/15 to-accent/10 p-6 sm:p-8">
-          <h1 className="text-2xl font-bold sm:text-3xl">한국사 마스터</h1>
-          <p className="mt-1 text-muted">
-            한국사능력검정시험(한능검) 합격까지 — 분석·학습·복습을 한 곳에서.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Link href="/study" className="btn btn-primary px-4 py-2.5">문제풀이 시작</Link>
-            <Link href="/bank" className="btn btn-outline px-4 py-2.5">문제은행 열람</Link>
+        <div className="space-y-4 bg-gradient-to-br from-primary/15 to-accent/10 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            {/* D-day */}
+            {ready && stats.dday !== null ? (
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-extrabold text-primary sm:text-5xl">
+                  {stats.dday >= 0 ? `D-${stats.dday}` : "시험일 지남"}
+                </span>
+                <Link href="/plan" className="text-sm text-muted hover:text-foreground">
+                  {store.settings.examDate}
+                </Link>
+              </div>
+            ) : (
+              <label className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-1.5 font-semibold"><Target size={18} className="text-accent" /> 시험일을 등록하세요</span>
+                <input
+                  type="date"
+                  className="rounded-lg border bg-surface px-3 py-1.5 text-sm"
+                  onChange={(e) => {
+                    if (e.target.value) update((s) => ({ ...s, settings: { ...s.settings, examDate: e.target.value } }));
+                  }}
+                />
+                <span className="text-xs text-muted">등록하면 D-day 기준 맞춤 플랜이 시작됩니다</span>
+              </label>
+            )}
+
+            {/* 합격권 배지 — "나 지금 합격권인가?"에 3초 안에 답한다 */}
+            {ready && (
+              exam ? (
+                <Link
+                  href="/analytics"
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                    exam.passed
+                      ? "border-green-500/40 bg-green-500/10 text-green-600"
+                      : "border-red-500/40 bg-red-500/10 text-red-500"
+                  }`}
+                >
+                  <ClipboardCheck size={17} />
+                  최근 모의고사 {exam.score100}점 — {exam.passed ? `${exam.grade}급 합격권` : "합격선(60점) 미달"}
+                  <span className="font-normal text-muted">
+                    {daysBetween(new Date(exam.ts), new Date()) === 0 ? "오늘" : `${daysBetween(new Date(exam.ts), new Date())}일 전`}
+                  </span>
+                </Link>
+              ) : (
+                <Link href="/exam" className="flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
+                  <ClipboardCheck size={17} /> 모의고사로 현재 실력 진단하기 <ArrowRight size={15} />
+                </Link>
+              )
+            )}
           </div>
+
+          {/* 오늘 할 일 */}
+          {ready && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">오늘 할 일</p>
+              {stats.due > 0 && (
+                <TaskRow href="/review" label={`복습 대기 ${stats.due}문항 비우기`} sub="망각곡선이 리셋되기 전에" accent />
+              )}
+              <TaskRow
+                href="/study?warmup=1"
+                label="오늘의 워밍업 — 취약 시대 5문제"
+                sub={solvedToday ? "오늘 학습 완료!" : "5분이면 충분해요"}
+                done={solvedToday}
+              />
+              {examStale && (
+                <TaskRow
+                  href="/exam"
+                  label={exam ? "이번 주 모의고사로 실력 점검" : "첫 모의고사로 출발점 확인"}
+                  sub="주 1회 실전 점검이 합격 페이스의 기준"
+                />
+              )}
+              {finalStretch && (
+                <TaskRow href="/saryo" label="막판 정리 — 사료 트레이닝·암기카드" sub={`시험까지 ${stats.dday}일. 자료형·빈출 키워드 집중`} accent />
+              )}
+            </div>
+          )}
         </div>
       </section>
-
-      {/* 데이터셋 업데이트 기준 정보 */}
-      <Link href="/updates" className="card card-hover flex flex-wrap items-center gap-x-4 gap-y-1 p-3 text-sm">
-        <span className="rounded-full bg-primary/12 px-2.5 py-0.5 text-xs font-bold text-primary">
-          데이터셋 {rel?.current ? `v${rel.current.version}` : "준비 중"}
-        </span>
-        <span className="text-muted">총 {rel?.meta.total ?? "—"}문항</span>
-        {rel?.meta.latestRound != null && <span className="text-muted">최근 반영 {rel.meta.latestRound}회</span>}
-        <span className="text-muted">
-          최종 업데이트 {rel?.meta.updatedAt ? new Date(rel.meta.updatedAt).toLocaleDateString("ko-KR") : "—"}
-        </span>
-        <span className="ml-auto text-primary">업데이트 내역 →</span>
-      </Link>
 
       {/* 요약 지표 */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -118,7 +180,12 @@ export default function Home() {
           ready && stats.dday !== null ? (stats.dday >= 0 ? `D-${stats.dday}` : "지남") : "미설정"
         } href="/plan" />
         <Metric icon={<Flame size={18} className="text-accent" />} label="연속 학습" value={ready ? `${store.streak.current}일` : "—"} href="/plan" />
-        <Metric icon={<BarChart3 size={18} />} label="누적 정답률" value={ready && stats.total ? pct(stats.correct / stats.total) : "—"} href="/analytics" />
+        <Metric
+          icon={<ClipboardCheck size={18} />}
+          label="최근 모의고사"
+          value={ready ? (exam ? `${exam.score100}점` : "미응시") : "—"}
+          href={exam ? "/analytics" : "/exam"}
+        />
         <Metric icon={<CalendarClock size={18} />} label="복습 대기" value={ready ? `${stats.due}` : "—"} href="/review" />
       </section>
 
@@ -134,23 +201,20 @@ export default function Home() {
         </section>
       )}
 
-      {/* 학습 도구 — 메인 3개 + 추가기능 */}
+      {/* 학습 도구 — 메인 4개 + 추가기능 */}
       <section>
-        <h2 className="mb-3 text-lg font-semibold">학습 도구</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {MAIN_TILES.map((t) => <FeatureTile key={t.href} {...t} />)}
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">학습 도구</h2>
           <button
             onClick={() => setShowMore((v) => !v)}
-            className="card card-hover group flex flex-col gap-2 p-4 text-left"
+            className="flex items-center gap-1 text-sm text-muted hover:text-foreground"
           >
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/12 text-primary">
-              <LayoutGrid size={20} />
-            </span>
-            <span className="flex items-center gap-1 font-semibold">
-              추가기능 <ChevronDown size={15} className={showMore ? "rotate-180 transition-transform text-muted" : "transition-transform text-muted"} />
-            </span>
-            <span className="text-xs text-muted">{showMore ? "접기" : "나머지 도구 모음"}</span>
+            추가기능 {showMore ? "접기" : "펼치기"}
+            <ChevronDown size={15} className={showMore ? "rotate-180 transition-transform" : "transition-transform"} />
           </button>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {MAIN_TILES.map((t) => <FeatureTile key={t.href} {...t} />)}
         </div>
 
         {showMore && (
@@ -159,7 +223,36 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {/* 데이터셋 업데이트 정보 — 참고용이므로 맨 아래 */}
+      <Link href="/updates" className="card card-hover flex flex-wrap items-center gap-x-4 gap-y-1 p-3 text-sm">
+        <span className="rounded-full bg-primary/12 px-2.5 py-0.5 text-xs font-bold text-primary">
+          데이터셋 {rel?.current ? `v${rel.current.version}` : "준비 중"}
+        </span>
+        <span className="text-muted">총 {rel?.meta.total ?? "—"}문항</span>
+        {rel?.meta.latestRound != null && <span className="text-muted">최근 반영 {rel.meta.latestRound}회</span>}
+        <span className="text-muted">
+          최종 업데이트 {rel?.meta.updatedAt ? new Date(rel.meta.updatedAt).toLocaleDateString("ko-KR") : "—"}
+        </span>
+        <span className="ml-auto text-primary">업데이트 내역 →</span>
+      </Link>
     </div>
+  );
+}
+
+function TaskRow({ href, label, sub, accent, done }: { href: string; label: string; sub?: string; accent?: boolean; done?: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-2.5 rounded-xl border bg-surface/70 px-3 py-2.5 text-sm transition-colors hover:bg-surface ${
+        accent ? "border-accent/40" : ""
+      } ${done ? "opacity-70" : ""}`}
+    >
+      <CheckCircle2 size={17} className={done ? "text-green-500" : accent ? "text-accent" : "text-muted"} />
+      <span className={`font-medium ${done ? "line-through" : ""}`}>{label}</span>
+      {sub && <span className="hidden text-xs text-muted sm:inline">{sub}</span>}
+      <ArrowRight size={15} className="ml-auto text-muted" />
+    </Link>
   );
 }
 

@@ -3,13 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/useStore";
-import { recordAttempt, toggleBookmark } from "@/lib/local-store";
+import { recordAttempt, toggleBookmark, type AttemptSource } from "@/lib/local-store";
 import { eraLabel, qTypeLabel, levelLabel } from "@/lib/domain";
 import { cn, pct } from "@/lib/utils";
 import type { QuestionDTO } from "@/lib/types";
 import { Bookmark, BookmarkCheck, CheckCircle2, XCircle, MessageCircleQuestion, ArrowRight, RotateCcw, Image as ImageIcon } from "lucide-react";
 
-export default function StudyRunner({ questions }: { questions: QuestionDTO[] }) {
+export default function StudyRunner({
+  questions,
+  source = "study",
+}: {
+  questions: QuestionDTO[];
+  /** 풀이 맥락 — 통계에서 실전/복습 구분용 */
+  source?: AttemptSource;
+}) {
   const { update, store } = useStore();
   const [idx, setIdx] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -41,6 +48,7 @@ export default function StudyRunner({ questions }: { questions: QuestionDTO[] })
         era: q.era,
         qType: q.qType,
         level: q.level,
+        source,
       })
     );
   }
@@ -81,6 +89,7 @@ export default function StudyRunner({ questions }: { questions: QuestionDTO[] })
 
   if (done) {
     const correct = results.filter(Boolean).length;
+    const wrongCount = results.length - correct;
     return (
       <div className="card p-8 text-center">
         <h2 className="mb-2 text-2xl font-bold">학습 완료 🎉</h2>
@@ -88,7 +97,13 @@ export default function StudyRunner({ questions }: { questions: QuestionDTO[] })
           {questions.length}문항 중 <b className="text-primary">{correct}문항</b> 정답
         </p>
         <p className="mb-6 text-muted">정답률 {pct(correct / questions.length)}</p>
-        <div className="flex justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2">
+          {/* 틀린 직후가 복습 효과가 가장 클 때 — 오답이 있으면 바로 잇는다 */}
+          {wrongCount > 0 && source !== "review" && (
+            <Link href="/review" className="btn btn-accent px-4 py-2">
+              오답 {wrongCount}개 이어서 복습 <ArrowRight size={16} />
+            </Link>
+          )}
           <button
             className="btn btn-outline px-4 py-2"
             onClick={() => {
@@ -100,7 +115,10 @@ export default function StudyRunner({ questions }: { questions: QuestionDTO[] })
           >
             <RotateCcw size={16} /> 다시 풀기
           </button>
-          <Link href="/analytics" className="btn btn-primary px-4 py-2">
+          <Link
+            href="/analytics"
+            className={cn("btn px-4 py-2", wrongCount > 0 && source !== "review" ? "btn-outline" : "btn-primary")}
+          >
             통계 보기 <ArrowRight size={16} />
           </Link>
         </div>

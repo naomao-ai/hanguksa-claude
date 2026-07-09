@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  LineChart, Line, Cell,
+  LineChart, Line, Cell, ReferenceLine,
 } from "recharts";
 import { useStore } from "@/lib/useStore";
+import { latestExam } from "@/lib/local-store";
 import { ERAS, qTypeLabel } from "@/lib/domain";
 import { pct } from "@/lib/utils";
-import { AlertTriangle, TrendingUp } from "lucide-react";
+import { AlertTriangle, TrendingUp, ClipboardCheck } from "lucide-react";
 
 interface Trends {
   total: number;
@@ -79,6 +80,20 @@ export default function AnalyticsPage() {
 
   const total = store.attempts.length;
   const correct = store.attempts.filter((a) => a.correct).length;
+  // 실전(모의고사) 기록만 분리 — 복습 반복으로 부풀려진 누적 정답률과 구분
+  const examAttempts = store.attempts.filter((a) => a.source === "exam");
+  const examCorrect = examAttempts.filter((a) => a.correct).length;
+
+  // 모의고사 점수 추이
+  const examTrend = useMemo(
+    () =>
+      store.examHistory.map((e) => ({
+        day: new Date(e.ts).toISOString().slice(5, 10),
+        score: e.score100,
+      })),
+    [store.examHistory]
+  );
+  const last = ready ? latestExam(store) : null;
 
   return (
     <div className="space-y-6">
@@ -88,11 +103,41 @@ export default function AnalyticsPage() {
       </header>
 
       {/* 개인 요약 */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat label="총 풀이" value={`${total}`} />
         <Stat label="정답" value={`${correct}`} />
         <Stat label="누적 정답률" value={total ? pct(correct / total) : "—"} />
+        <Stat label="실전 정답률(모의고사)" value={examAttempts.length ? pct(examCorrect / examAttempts.length) : "—"} />
         <Stat label="학습일" value={`${store.streak.studyDays.length}일`} />
+      </section>
+
+      {/* 모의고사 점수 추이 — "나 지금 합격권인가?" */}
+      <section className="card p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-1.5 font-semibold"><ClipboardCheck size={18} /> 모의고사 점수 추이</h2>
+          {last && (
+            <span className={`rounded-full px-3 py-1 text-sm font-bold ${last.passed ? "bg-green-500/12 text-green-600" : "bg-red-500/12 text-red-500"}`}>
+              최근 {last.score100}점 — {last.passed ? `${last.grade}급 합격권` : "합격선(60점) 미달"}
+            </span>
+          )}
+        </div>
+        {examTrend.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted">
+            아직 모의고사 기록이 없습니다. <a href="/exam" className="font-medium text-primary">첫 모의고사</a>로 출발점을 확인하세요 — 이 그래프가 시험까지의 페이스를 알려줍니다.
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={examTrend} margin={{ left: -10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "var(--muted)" }} />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "var(--muted)" }} />
+              <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }} />
+              <ReferenceLine y={60} stroke="var(--accent)" strokeDasharray="4 4" label={{ value: "합격선 60", fontSize: 11, fill: "var(--accent)", position: "insideTopLeft" }} />
+              <ReferenceLine y={80} stroke="var(--gold)" strokeDasharray="4 4" label={{ value: "1급 80", fontSize: 11, fill: "var(--gold)", position: "insideTopLeft" }} />
+              <Line type="monotone" dataKey="score" name="점수" stroke="var(--primary)" strokeWidth={2} dot />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </section>
 
       {/* 취약 영역 진단 */}

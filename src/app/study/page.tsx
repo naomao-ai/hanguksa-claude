@@ -2,8 +2,10 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { ERAS, QUESTION_TYPES, LEVELS } from "@/lib/domain";
+import { ERAS, QUESTION_TYPES, LEVELS, eraLabel } from "@/lib/domain";
 import { fetchQuestions, fetchRounds, fetchFacts } from "@/lib/api";
+import { useStore } from "@/lib/useStore";
+import { weakestEra } from "@/lib/local-store";
 import type { QuestionDTO } from "@/lib/types";
 import StudyRunner from "@/components/StudyRunner";
 import Chips from "@/components/Chips";
@@ -23,6 +25,8 @@ function StudyPage() {
   const factId = params.get("factId");
   const warmup = params.get("warmup") === "1";
   const [factTitle, setFactTitle] = useState<string>("");
+  const { store, ready } = useStore();
+  const [warmupEra, setWarmupEra] = useState<string | null>(null);
 
   useEffect(() => { fetchRounds().then(setRounds); }, []);
 
@@ -40,15 +44,28 @@ function StudyPage() {
     });
   }, [factId]);
 
-  // 오늘의 워밍업(warmup=1) 진입 시 랜덤 5문제 자동 시작
+  // 오늘의 워밍업(warmup=1) — 취약 시대 우선 5문제 (짧은 세션을 약점에 집중).
+  // 취약 시대가 없거나(초기) 해당 시대 문항이 없으면 랜덤으로 폴백.
   useEffect(() => {
-    if (!warmup) return;
+    if (!warmup || !ready) return;
     setLoading(true);
-    fetchQuestions({ limit: 5, random: true }).then((qs) => {
+    const weak = weakestEra(store);
+    (async () => {
+      let qs: QuestionDTO[] = [];
+      if (weak) {
+        qs = await fetchQuestions({ era: weak, limit: 5, random: true });
+      }
+      if (qs.length > 0) {
+        setWarmupEra(weak);
+      } else {
+        qs = await fetchQuestions({ limit: 5, random: true });
+        setWarmupEra(null);
+      }
       setQuestions(qs);
       setLoading(false);
-    });
-  }, [warmup]);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warmup, ready]);
 
   async function start() {
     setLoading(true);
@@ -74,7 +91,10 @@ function StudyPage() {
           </div>
         ) : warmup ? (
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted">☀️ <b className="text-foreground">오늘의 워밍업</b> · 랜덤 {questions.length}문제</p>
+            <p className="text-sm text-muted">
+              ☀️ <b className="text-foreground">오늘의 워밍업</b> ·{" "}
+              {warmupEra ? <>취약 시대 <b className="text-accent">{eraLabel(warmupEra)}</b> {questions.length}문제</> : `랜덤 ${questions.length}문제`}
+            </p>
             <a href="/" className="text-sm text-muted hover:text-foreground">← 홈으로</a>
           </div>
         ) : (
@@ -85,7 +105,7 @@ function StudyPage() {
         {questions.length === 0 ? (
           <div className="card p-8 text-center text-muted">출제할 문제가 없습니다. 문제은행을 확인하세요.</div>
         ) : (
-          <StudyRunner questions={questions} />
+          <StudyRunner questions={questions} source={warmup ? "warmup" : "study"} />
         )}
       </div>
     );

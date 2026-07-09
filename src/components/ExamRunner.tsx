@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/useStore";
 import { useUI } from "@/components/ui/UIProvider";
-import { recordAttempt } from "@/lib/local-store";
+import { recordAttempt, recordExamResult } from "@/lib/local-store";
 import { gradeExam, type ExamResult } from "@/lib/scoring";
 import { EXAM_DURATION_MIN, eraLabel, levelLabel, type Level } from "@/lib/domain";
 import { cn, pct } from "@/lib/utils";
@@ -37,7 +37,7 @@ export default function ExamRunner({
     const r = gradeExam(level, examAnswers);
     setResult(r);
     setSubmitted(true);
-    // 학습 기록 반영
+    // 학습 기록 + 모의고사 이력 반영 (이력이 있어야 점수 추이·합격권 판단 가능)
     update((s) => {
       let next = s;
       questions.forEach((qq, i) => {
@@ -49,9 +49,17 @@ export default function ExamRunner({
           era: qq.era,
           qType: qq.qType,
           level: qq.level,
+          source: "exam",
         });
       });
-      return next;
+      return recordExamResult(next, {
+        level,
+        score100: r.score100,
+        correct: r.correct,
+        total: r.total,
+        grade: r.grade.grade,
+        passed: r.grade.passed,
+      });
     });
   }
 
