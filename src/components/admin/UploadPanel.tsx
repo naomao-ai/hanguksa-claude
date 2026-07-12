@@ -6,7 +6,7 @@ import type { AnalyzeResult, AnalyzedQuestion } from "@/lib/ai/schema";
 import type { TokenUsage, ImageRole } from "@/lib/ai/claude";
 import { getPdfPageCount, renderPdfPages } from "@/lib/pdf";
 import { cropImageRegion, resolveFigureBox, resolveChoiceBox, downscaleForApi, splitColumns, getImageSize, loadInkMap, type NormalizedBox } from "@/lib/image";
-import { snapChoiceBoxes } from "@/lib/snap";
+import { snapChoiceBoxes, snapFigureBand } from "@/lib/snap";
 import { AI_MODELS, DEFAULT_MODEL } from "@/lib/models";
 import { Loader2, Sparkles, Check, Zap, FileText, ListChecks, Image as ImageIcon, FileType2, X } from "lucide-react";
 
@@ -188,9 +188,20 @@ export default function UploadPanel({ onSaved }: { onSaved: (added: number) => v
         (rest.questions ?? []).map(async (q: AnalyzedQuestion) => {
           let out: AnalyzedQuestion = q;
           const src = q.imageSourceIndex != null ? images[q.imageSourceIndex] : undefined;
-          // 1) 발문(stem) 그림: 세로는 배점/보기 앵커로 정량 계산, 가로는 imageBox.
-          //    questionBox(문항 영역) 안으로 클램프되어 2단 시험지에서 옆 단을 침범하지 않는다.
-          const box = resolveFigureBox(q);
+          // 1) 발문(stem) 그림. 세로는 잉크 밴드로 삽화 경계를 결정적으로 확정한다
+          //    (선지 클러스터 → 위로 스캔). 모델 세로 좌표는 계통 편차가 있어 크롭이
+          //    삽화를 벗어나 선지를 삼키기 때문. 밴드 확정 실패 시 모델 앵커로 폴백하며,
+          //    가로는 항상 imageBox를 questionBox 단(컬럼) 안으로만 클램프해 2단 침범을 막는다.
+          let figBox: NormalizedBox | null = null;
+          if (q.imageBox && src) {
+            try {
+              const ink = await loadInkMap(src.preview);
+              figBox = snapFigureBand(ink, q.imageBox, q.questionBox);
+            } catch {
+              // 밴드 확정 실패 → 아래 모델 앵커 폴백
+            }
+          }
+          const box = figBox ?? resolveFigureBox(q);
           if (box && src) {
             try {
               out = { ...out, imageUrl: await cropImageRegion(src.preview, box) };

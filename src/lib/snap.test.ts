@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildInkMap, contentBands, snapRowInBand, snapChoiceBoxes, type InkMap } from "./snap";
+import { buildInkMap, contentBands, snapRowInBand, snapChoiceBoxes, snapFigureBand, type InkMap } from "./snap";
 import type { NormalizedBox } from "./image";
 
 // ---------- 합성 잉크 맵 도우미 ----------
@@ -143,5 +143,109 @@ describe("snapChoiceBoxes — 격자 전체 보정", () => {
     snapped.forEach((s, i) => {
       expect(iou(s, TRUE_GRID[i])).toBeGreaterThan(0.8);
     });
+  });
+});
+
+describe("snapFigureBand — 발문 삽화 크롭 박스 확정 (선지→위 스캔 + 잉크 가로)", () => {
+  // 78회 #1 유형 지면: [헤더][발문 한 줄][삽화][선지 5줄]. 세로 전체.
+  function figurePageInk(): InkMap {
+    const ink = emptyInk(400, 800);
+    fillRect(ink, { x: 0.1, y: 0.06, width: 0.6, height: 0.04 }); // 헤더(굵음)
+    fillRect(ink, { x: 0.05, y: 0.15, width: 0.5, height: 0.012 }); // 발문 한 줄(얇음)
+    fillRect(ink, { x: 0.08, y: 0.2, width: 0.62, height: 0.24 }); // 삽화(굵음·넓음) x0.08~0.70, y0.20~0.44
+    [0.46, 0.49, 0.52, 0.55, 0.58].forEach((y) =>
+      fillRect(ink, { x: 0.05, y, width: 0.4, height: 0.012 })
+    ); // 선지 5줄(얇음)
+    return ink;
+  }
+  // 모델 questionBox가 삽화 상단(0.20)을 자르고(y=0.28), imageBox도 좁고 아래로 밀린 상태
+  const FIG_QBOX: NormalizedBox = { x: 0.03, y: 0.28, width: 0.72, height: 0.35 };
+  const FIG_IMGBOX: NormalizedBox = { x: 0.2, y: 0.3, width: 0.3, height: 0.25 };
+
+  it("선지 위로 스캔해 삽화 전체(발문 아래~선지 위)를 세로로 잡는다 (78회 #1)", () => {
+    const box = snapFigureBand(figurePageInk(), FIG_IMGBOX, FIG_QBOX)!;
+    expect(box).not.toBeNull();
+    // 삽화(0.20~0.44) 전체 + 위/아래 여백 소폭. 발문(≤0.162)·선지(≥0.46) 제외.
+    expect(box.y).toBeGreaterThan(0.162); // 발문 밴드 제외
+    expect(box.y).toBeLessThan(0.2); // 삽화 잉크 위 여백까지 포함
+    expect(box.y + box.height).toBeGreaterThan(0.44); // 삽화 아래 끝 포함
+    expect(box.y + box.height).toBeLessThan(0.46); // 선지 top 침범 안 함
+  });
+
+  it("모델 imageBox가 좁아도 잉크로 삽화 실제 가로(0.08~0.70)를 찾는다", () => {
+    const box = snapFigureBand(figurePageInk(), FIG_IMGBOX, FIG_QBOX)!;
+    expect(box.x).toBeLessThan(0.15); // imageBox.x=0.2 보다 왼쪽(삽화 실제 좌단 0.08)
+    expect(box.x + box.width).toBeGreaterThan(0.6); // 삽화 실제 우단(0.70)까지
+  });
+
+  it("questionBox가 삽화 상단을 잘라도 박스 top은 삽화 실제 상단을 넘어간다", () => {
+    const box = snapFigureBand(figurePageInk(), FIG_IMGBOX, FIG_QBOX)!;
+    expect(box.y).toBeLessThan(FIG_QBOX.y); // < 0.28
+  });
+
+  it("가로는 questionBox 단(컬럼) 안으로 클램프된다 (2단 침범 방지)", () => {
+    const box = snapFigureBand(figurePageInk(), FIG_IMGBOX, FIG_QBOX)!;
+    expect(box.x).toBeGreaterThanOrEqual(FIG_QBOX.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(FIG_QBOX.x + FIG_QBOX.width);
+  });
+
+  it("삽화가 짧아 발문이 maxHeight 안에 들어와도 발문 텍스트를 제외한다 (78회 #2 유형)", () => {
+    const ink = emptyInk(400, 800);
+    fillRect(ink, { x: 0.05, y: 0.6, width: 0.5, height: 0.012 }); // 발문 줄1
+    fillRect(ink, { x: 0.05, y: 0.618, width: 0.4, height: 0.012 }); // 발문 줄2
+    fillRect(ink, { x: 0.08, y: 0.65, width: 0.6, height: 0.15 }); // 삽화(칠판) 0.65~0.80
+    [0.82, 0.85, 0.88, 0.91, 0.94].forEach((y) =>
+      fillRect(ink, { x: 0.05, y, width: 0.4, height: 0.012 })
+    ); // 선지 5줄
+    // 모델 imageBox는 선지 근처로 밀린 상태(#2 실측 재현)
+    const box = snapFigureBand(ink, { x: 0.19, y: 0.83, width: 0.6, height: 0.11 }, { x: 0.04, y: 0.8, width: 0.9, height: 0.16 })!;
+    expect(box).not.toBeNull();
+    expect(box.y).toBeGreaterThan(0.63); // 발문(≤0.63) 제외
+    expect(box.y).toBeLessThan(0.65); // 삽화 위 여백까지만
+    expect(box.y + box.height).toBeGreaterThan(0.8); // 삽화 아래 끝 포함
+    expect(box.y + box.height).toBeLessThan(0.82); // 선지 침범 안 함
+  });
+
+  it("그림 선지(굵은 이미지 밴드 격자)면 얇은 클러스터가 없어 null → 폴백", () => {
+    const ink = pageInk(true); // 굵은 격자(h0.085) — 얇은 선지 아님
+    const modelBox = { x: 0.04, y: 0.55, width: 0.4, height: 0.23 };
+    expect(snapFigureBand(ink, modelBox, Q_BOX)).toBeNull();
+  });
+
+  it("선지 클러스터를 못 찾으면 null", () => {
+    const ink = emptyInk(400, 800);
+    fillRect(ink, { x: 0.08, y: 0.2, width: 0.5, height: 0.24 }); // 삽화만, 선지 없음
+    const modelBox = { x: 0.1, y: 0.3, width: 0.5, height: 0.25 };
+    expect(snapFigureBand(ink, modelBox, FIG_QBOX)).toBeNull();
+  });
+
+  it("그림 선지 문항: 그림보다 한참 아래의 다음 문항 선지는 무시하고 폴백(null)", () => {
+    const ink = emptyInk(400, 800);
+    fillRect(ink, { x: 0.1, y: 0.2, width: 0.6, height: 0.14 }); // 스템 삽화(굵음)
+    [0.1, 0.3, 0.5].forEach((x) => fillRect(ink, { x, y: 0.37, width: 0.15, height: 0.11 })); // 그림 선지 격자(굵음)
+    [0.78, 0.81, 0.84, 0.87].forEach((y) => fillRect(ink, { x: 0.1, y, width: 0.4, height: 0.012 })); // 다음 문항 선지
+    const imageBox = { x: 0.1, y: 0.2, width: 0.6, height: 0.14 };
+    // 다음 문항 선지(0.78)는 그림(0.20~0.34)보다 0.2 넘게 아래 → 폴백
+    expect(snapFigureBand(ink, imageBox, { x: 0.05, y: 0.15, width: 0.7, height: 0.4 })).toBeNull();
+  });
+
+  it("글로만 된 긴 삽화(굵은 밴드 없음)도 본문을 잡고 발문·선지는 제외 (78회 #24 책 유형)", () => {
+    const ink = emptyInk(400, 900);
+    // 헤더·발문 얇은 줄들이 책 본문과 촘촘히 이어져 하나의 run → imageBox.y-0.05 위에서
+    // 시작하므로 선지로 오인되지 않는다(실측 #24 재현).
+    [0.04, 0.065, 0.09].forEach((y) => fillRect(ink, { x: 0.1, y, width: 0.4, height: 0.012 }));
+    // 책 본문: 긴 텍스트(굵은 밴드 없음), 0.12~0.402, 줄 간격 ~0.018
+    [0.12, 0.15, 0.18, 0.21, 0.24, 0.27, 0.3, 0.33, 0.36, 0.39].forEach((y) =>
+      fillRect(ink, { x: 0.1, y, width: 0.5, height: 0.012 })
+    );
+    // 선지 5줄: 촘촘(간격 0.008 > minGap), 책과는 큰 간격(0.058)으로 분리
+    [0.46, 0.478, 0.496, 0.514, 0.532].forEach((y) =>
+      fillRect(ink, { x: 0.05, y, width: 0.4, height: 0.01 })
+    );
+    const box = snapFigureBand(ink, { x: 0.1, y: 0.12, width: 0.5, height: 0.3 }, { x: 0.03, y: 0.1, width: 0.6, height: 0.45 })!;
+    expect(box).not.toBeNull();
+    expect(box.y).toBeGreaterThan(0.102); // 발문(≤0.102) 제외
+    expect(box.y + box.height).toBeGreaterThan(0.39); // 책 아래 끝 포함
+    expect(box.y + box.height).toBeLessThan(0.46); // 선지 제외
   });
 });
