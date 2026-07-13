@@ -56,3 +56,5 @@ firebase-debug.log*
 /_pdf78_cols/
 /_pdf78_q/
 /_pdf78_hi/
+# Claude Code 임포트 경로 작업 디렉터리 (렌더·분석 JSON·크롭 미리보기)
+/_import/

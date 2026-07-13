@@ -35,6 +35,9 @@
     "node_modules",
     "scripts/migrate-to-firebase.ts",
     "scripts/seed-timeline.ts",
+    "scripts/render-exam-pdf.ts",
+    "scripts/import-exam.ts",
+    "scripts/lib/node-image.ts",
     "prisma/seed.ts",
     "prisma/seed-78.ts",
     "prisma/seed-recent.ts"

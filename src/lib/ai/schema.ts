@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { ERA_KEYS, QUESTION_TYPES } from "@/lib/domain";
+// 상대경로+.ts 확장자: Node 스크립트(--experimental-strip-types)가 @/ 별칭을 해석하지
+// 못하므로, scripts/import-exam.ts에서 이 스키마를 재사용할 수 있게 한다(storage.ts 선례).
+import { ERA_KEYS, QUESTION_TYPES } from "../domain.ts";
 
 const qTypeKeys = QUESTION_TYPES.map((q) => q.key) as [string, ...string[]];
 

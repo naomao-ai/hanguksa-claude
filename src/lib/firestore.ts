@@ -1,6 +1,6 @@
-import { db } from "./firebase-admin";
+import { db } from "./firebase-admin.ts";
 import { Timestamp } from "firebase-admin/firestore";
-import { uploadImageFromDataUrl, deleteImageByUrl } from "./storage";
+import { uploadImageFromDataUrl, deleteImageByUrl } from "./storage.ts";
 import type { QuestionDTO, FactDTO, VideoDTO } from "./types";
 import type { Level } from "./domain";
 
@@ -210,7 +210,14 @@ export async function createQuestions(questions: NewQuestion[]): Promise<number>
 export async function deleteQuestion(id: string): Promise<void> {
   const ref = db.collection(COL.questions).doc(id);
   const s = await ref.get();
-  if (s.exists) await deleteImageByUrl(s.data()?.imageUrl);
+  if (s.exists) {
+    await deleteImageByUrl(s.data()?.imageUrl);
+    // 그림 선지 이미지도 정리 (Storage 고아 파일 방지)
+    const choices: { imageUrl?: string | null }[] = Array.isArray(s.data()?.choices)
+      ? s.data()!.choices
+      : [];
+    for (const c of choices) if (c.imageUrl) await deleteImageByUrl(c.imageUrl);
+  }
   await ref.delete();
 }
 

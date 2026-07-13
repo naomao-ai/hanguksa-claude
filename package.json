@@ -13,6 +13,8 @@
     "db:push": "prisma db push",
     "migrate:firebase": "node --env-file=.env.local --experimental-strip-types scripts/migrate-to-firebase.ts",
     "seed:timeline": "node --env-file=.env.local --experimental-strip-types scripts/seed-timeline.ts",
+    "render:exam": "node --experimental-strip-types scripts/render-exam-pdf.ts",
+    "import:exam": "node --env-file=.env.local --experimental-strip-types scripts/import-exam.ts",
     "sim": "node scripts/simulate.mjs 30 functional",
     "sim:perf": "node scripts/simulate.mjs 30 perf"
   },
@@ -31,6 +33,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
