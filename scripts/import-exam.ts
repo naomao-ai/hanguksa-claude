@@ -11,6 +11,9 @@
  *       연표 목록을 "id|era|year|title|keywords" 줄로 출력 (factIds 배정용)
  *   --json <file> --images <dir> --dry-run --out <dir>
  *       검증→보정→크롭 PNG·manifest.json 저장만. Firestore 접근 없음.
+ *   --json <file> --images <dir> --update [--release "제목"]
+ *       같은 회차·번호의 기존 문항만 제자리 교체(내용·이미지 갱신). 나머지 문항은
+ *       보존. 번호가 매칭 안 되는 문항은 건너뛴다(비파괴).
  *   --json <file> --images <dir> --upload [--replace-round] [--release "제목"]
  *       동일 파이프라인 재실행 후 저장. 같은 회차가 이미 있으면
  *       --replace-round(기존 전량 삭제 후 저장) 없이는 중단한다.
@@ -194,6 +197,7 @@ async function main() {
       "사용법:\n" +
         "  --dump-facts\n" +
         '  --json <file> --images <dir> --dry-run --out <dir>\n' +
+        '  --json <file> --images <dir> --update [--release "제목"]   (같은 회차·번호 제자리 교체)\n' +
         '  --json <file> --images <dir> --upload [--replace-round] [--release "제목"]'
     );
     process.exit(1);
@@ -266,9 +270,78 @@ async function main() {
     return;
   }
 
+  // ---------- update (제자리 교체: 같은 회차·번호 문항만 덮어씀, 나머지 보존) ----------
+  if (has("update")) {
+    if (examRound == null) {
+      console.error("❌ --update는 examRound가 필요합니다(번호로 기존 문항을 찾음).");
+      process.exit(1);
+    }
+    const { getQuestions, updateQuestion, getFacts, createRelease } = await import(
+      "../src/lib/firestore.ts"
+    );
+    const defLevel = level === "GIBON" ? "GIBON" : "SIMHWA";
+    const validIds = new Set((await getFacts()).map((f) => f.id));
+    for (const q of questions) {
+      if (!q.factIds?.length) continue;
+      const bad = q.factIds.filter((id) => !validIds.has(id));
+      if (bad.length) {
+        console.warn(`⚠ #${q.number}: 미존재 factId 제거 — ${bad.join(", ")}`);
+        q.factIds = q.factIds.filter((id) => validIds.has(id));
+      }
+    }
+    const existing = await getQuestions({ round: examRound, level: defLevel, limit: 500 });
+    const byNum = new Map<number, string>();
+    for (const ex of existing) if (ex.number != null) byNum.set(ex.number, ex.id);
+
+    let updated = 0;
+    const missing: number[] = [];
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const id = q.number != null ? byNum.get(q.number) : undefined;
+      if (!id) { missing.push(q.number ?? -1); continue; }
+      const item: NewQuestion = {
+        level: defLevel,
+        examRound,
+        examYear: examYear ?? null,
+        number: q.number ?? null,
+        stem: q.stem,
+        passage: q.passage ?? null,
+        imageDescription: q.imageDescription ?? null,
+        imageUrl: crops[i].imageUrl,
+        answerIndex: q.answerIndex,
+        explanation: q.explanation ?? null,
+        era: ERA_KEYS.includes(q.era) ? q.era : "joseon",
+        topics: q.topics ?? [],
+        qType: q.qType || "기타",
+        difficulty: q.difficulty ?? null,
+        choices: crops[i].choices,
+        factIds: q.factIds ?? [],
+      };
+      const res = await updateQuestion(id, item);
+      if (res) { updated++; console.log(`  ✎ #${q.number} 교체 (${id})`); }
+      else missing.push(q.number ?? -1);
+    }
+    console.log(
+      `✅ ${updated}문항 제자리 교체 완료` +
+        (missing.length ? ` · 매칭 실패 ${missing.length}개: ${missing.join(",")}` : "")
+    );
+    const relTitle = opt("release");
+    if (relTitle) {
+      const rel = await createRelease({
+        title: relTitle,
+        notes: `Claude Code 임포트 교체 — ${examRound}회 ${defLevel} ${updated}문항 이미지·내용 갱신`,
+        examRound,
+        examLevel: defLevel,
+        addedCount: 0,
+      });
+      console.log(`✅ 릴리스 v${rel.version} 발행: ${rel.title}`);
+    }
+    return;
+  }
+
   // ---------- upload ----------
   if (!has("upload")) {
-    console.error("모드를 지정하세요: --dry-run 또는 --upload");
+    console.error("모드를 지정하세요: --dry-run · --update · --upload");
     process.exit(1);
   }
   const { createQuestions, getQuestions, deleteQuestion, createRelease, getFacts } = await import(
