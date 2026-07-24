@@ -195,7 +195,10 @@ export async function updateQuestion(id: string, q: NewQuestion): Promise<Questi
   return docToQuestion(id, merged as FirebaseFirestore.DocumentData);
 }
 
-/** 다량 생성 (UPLOAD) — 이미지 data URL은 Storage로 업로드 후 URL 저장 */
+/** 다량 생성 (UPLOAD) — 이미지 data URL은 Storage로 업로드 후 URL 저장.
+ *  비원자 루프(문항별 즉시 커밋). 중간 실패 시 부분 기록이 남으므로, 회차 단위
+ *  임포트에는 아래 createQuestionsAtomic/replaceRoundQuestions를 쓴다. (bulk route 등
+ *  기존 호출자 호환을 위해 시그니처·동작 보존.) */
 export async function createQuestions(questions: NewQuestion[]): Promise<number> {
   let created = 0;
   for (const q of questions) {
@@ -205,6 +208,78 @@ export async function createQuestions(questions: NewQuestion[]): Promise<number>
     created++;
   }
   return created;
+}
+
+/**
+ * 문항 문서를 조립(이미지 Storage 업로드 포함)하되 Firestore 쓰기는 하지 않고
+ * {ref, data} 목록으로 반환한다. 하나라도 업로드/조립에 실패하면 여기서 throw되어
+ * 이후 배치 쓰기에 도달하지 못한다 — "아무 문서도 안 쓴" 깨끗한 중단을 보장하는 1단계.
+ */
+async function prepareQuestionDocs(
+  questions: NewQuestion[],
+  source: string
+): Promise<{ ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown> }[]> {
+  const prepared: { ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown> }[] = [];
+  for (const q of questions) {
+    const ref = db.collection(COL.questions).doc();
+    const data = await buildQuestionDoc(ref.id, q, source);
+    prepared.push({ ref, data });
+  }
+  return prepared;
+}
+
+/** WriteBatch 안전 상한. Firestore 한도는 500 op이나 여유를 둔다(회차 ~50문항이면 여유). */
+const BATCH_OP_LIMIT = 450;
+
+/**
+ * 원자적 다량 생성 — 이미지를 전부 먼저 업로드한 뒤 단일 WriteBatch로 커밋한다.
+ * Firestore 쓰기가 all-or-nothing이라, 이미지/네트워크 실패는 커밋 전에 throw되어
+ * 부분 기록(반쪽 회차)이 남지 않는다. (회차 임포트 upload 경로용)
+ */
+export async function createQuestionsAtomic(questions: NewQuestion[]): Promise<number> {
+  if (questions.length > BATCH_OP_LIMIT) {
+    throw new Error(`원자 생성 한도 초과: ${questions.length} > ${BATCH_OP_LIMIT}. 회차 단위로 나눠라.`);
+  }
+  const prepared = await prepareQuestionDocs(questions, "UPLOAD");
+  const batch = db.batch();
+  for (const p of prepared) batch.set(p.ref, p.data);
+  await batch.commit();
+  return prepared.length;
+}
+
+/**
+ * 회차 원자 교체 — 신규 이미지를 전부 먼저 업로드한 뒤, 기존 삭제 + 신규 생성을
+ * 단일 WriteBatch로 커밋한다. 커밋 전 어느 단계에서 실패해도 기존 회차는 그대로 보존된다
+ * (delete-first 파괴 경로 제거). 구 이미지 Storage 정리는 커밋 성공 후 best-effort로 수행.
+ */
+export async function replaceRoundQuestions(
+  round: number,
+  level: "SIMHWA" | "GIBON",
+  questions: NewQuestion[]
+): Promise<{ deleted: number; created: number }> {
+  // 1) 신규 문서 전량 조립(이미지 업로드 포함) — 실패 시 여기서 throw, 기존은 무손상.
+  const prepared = await prepareQuestionDocs(questions, "UPLOAD");
+  // 2) 삭제 대상 조회
+  const existing = await getQuestions({ round, level, limit: 500 });
+  const totalOps = existing.length + prepared.length;
+  if (totalOps > BATCH_OP_LIMIT) {
+    throw new Error(
+      `원자 교체 한도 초과: delete ${existing.length}+create ${prepared.length}=${totalOps} > ${BATCH_OP_LIMIT}. 수동 처리 필요.`
+    );
+  }
+  // 3) 단일 배치: 기존 delete + 신규 set (Firestore all-or-nothing)
+  const batch = db.batch();
+  for (const ex of existing) batch.delete(db.collection(COL.questions).doc(ex.id));
+  for (const p of prepared) batch.set(p.ref, p.data);
+  await batch.commit();
+  // 4) 구 이미지 Storage 정리 — 원자성과 무관하므로 커밋 성공 후 best-effort.
+  for (const ex of existing) {
+    await deleteImageByUrl(ex.imageUrl);
+    for (const c of ex.choices ?? []) {
+      if (c.imageUrl) await deleteImageByUrl(c.imageUrl);
+    }
+  }
+  return { deleted: existing.length, created: prepared.length };
 }
 
 export async function deleteQuestion(id: string): Promise<void> {

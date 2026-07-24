@@ -249,21 +249,30 @@ async function buildMontages(
   const { createCanvas, loadImage } = await import("@napi-rs/canvas");
   const written: string[] = [];
 
-  // 1) 발문 삽화 시트 (10문항/장)
-  const figs: { n: number; buf: Buffer }[] = [];
+  // 1) 발문 삽화 시트 (10문항/장) — 크롭 성공분과 "의도됐으나 결손"분을 함께 싣는다.
+  //    결손 문항을 빨간 MISSING 타일로 표시해, 시각 검수에서도 침묵 결손이 보이게 한다.
+  const figs: { n: number; buf: Buffer | null; note?: string }[] = [];
   for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const n = q.number ?? i + 1;
     if (crops[i].imageUrl) {
-      figs.push({ n: questions[i].number ?? i + 1, buf: dataUrlToBuffer(crops[i].imageUrl!) });
+      figs.push({ n, buf: dataUrlToBuffer(crops[i].imageUrl!) });
+    } else if (q.figureBox || q.imageBox || q.imageSourceIndex != null || q.imageDescription) {
+      figs.push({ n, buf: null, note: (q.imageDescription ?? "삽화 결손").slice(0, 44) });
     }
   }
-  const W = 560, PAD = 8, LABEL = 26, PERPAGE = 10, MAXH = 260;
+  const W = 560, PAD = 8, LABEL = 26, PERPAGE = 10, MAXH = 260, MISSH = 56;
   for (let p = 0, idx = 0; idx < figs.length; p++, idx += PERPAGE) {
     const batch = figs.slice(idx, idx + PERPAGE);
-    const items: { n: number; img: any; w: number; h: number }[] = [];
+    const items: { n: number; img: any; w: number; h: number; note?: string }[] = [];
     for (const b of batch) {
-      const img = await loadImage(b.buf);
-      const scale = Math.min((W - 2 * PAD) / img.width, MAXH / img.height);
-      items.push({ n: b.n, img, w: img.width * scale, h: img.height * scale });
+      if (b.buf) {
+        const img = await loadImage(b.buf);
+        const scale = Math.min((W - 2 * PAD) / img.width, MAXH / img.height);
+        items.push({ n: b.n, img, w: img.width * scale, h: img.height * scale });
+      } else {
+        items.push({ n: b.n, img: null, w: W - 2 * PAD, h: MISSH, note: b.note });
+      }
     }
     const totalH = items.reduce((s, it) => s + it.h + LABEL + PAD, PAD);
     const canvas = createCanvas(W, totalH);
@@ -271,12 +280,21 @@ async function buildMontages(
     ctx.fillStyle = "#f0eee9"; ctx.fillRect(0, 0, W, totalH);
     let y = PAD;
     for (const it of items) {
-      ctx.fillStyle = "#b02020"; ctx.font = "bold 18px sans-serif";
-      ctx.fillText(`#${it.n}`, PAD, y + 19);
+      const missing = !it.img;
+      ctx.fillStyle = missing ? "#c00000" : "#b02020"; ctx.font = "bold 18px sans-serif";
+      ctx.fillText(missing ? `#${it.n}  ⚠ 이미지 결손(MISSING)` : `#${it.n}`, PAD, y + 19);
       y += LABEL;
-      ctx.fillStyle = "#ffffff"; ctx.fillRect(PAD, y, it.w, it.h);
-      ctx.drawImage(it.img, PAD, y, it.w, it.h);
-      ctx.strokeStyle = "#ccc"; ctx.strokeRect(PAD, y, it.w, it.h);
+      if (missing) {
+        ctx.fillStyle = "#fdecec"; ctx.fillRect(PAD, y, it.w, it.h);
+        ctx.strokeStyle = "#c00000"; ctx.lineWidth = 2; ctx.strokeRect(PAD, y, it.w, it.h); ctx.lineWidth = 1;
+        ctx.fillStyle = "#7a0000"; ctx.font = "13px sans-serif";
+        ctx.fillText(it.note ?? "", PAD + 8, y + 22);
+        ctx.fillText("삽화 의도됐으나 크롭 없음 — 좌표 보강 필요", PAD + 8, y + 42);
+      } else {
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(PAD, y, it.w, it.h);
+        ctx.drawImage(it.img, PAD, y, it.w, it.h);
+        ctx.strokeStyle = "#ccc"; ctx.strokeRect(PAD, y, it.w, it.h);
+      }
       y += it.h + PAD;
     }
     const out = path.join(outDir, `montage_${p + 1}.png`);
@@ -315,6 +333,128 @@ async function buildMontages(
     written.push(out);
   }
   return written;
+}
+
+// ---------- 이미지 커버리지 검수 (침묵 결손 차단) ----------
+/**
+ * "삽화가 의도됐는데 크롭 imageUrl이 비어버린" 문항을 결정적으로 찾아낸다.
+ *
+ * 배경(71회 심화 사고): imageDescription만 있고 imageSourceIndex·박스가 없으면
+ * cropQuestion의 `&& src` 분기가 전부 건너뛰어져 imageUrl=null이 **경고 하나 없이**
+ * 반환되고, 몽타주는 imageUrl 있는 문항만 담으므로 이런 결손 문항은 몽타주에서 아예
+ * 사라진다 → 검수자 눈에 안 보이고 이미지 없이 업로드된다. 이 감사는 그 침묵 결손을
+ * 몽타주(시각)와 별개로 결정적으로 드러내, dry-run에서 경보하고 upload를 차단한다.
+ */
+type CoverageDefect = { number: number | null; kind: "figure" | "choices"; reason: string };
+function auditImageCoverage(questions: ImportQuestion[], crops: CropResult[]): CoverageDefect[] {
+  const defects: CoverageDefect[] = [];
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const c = crops[i];
+    // 발문 삽화가 "의도된" 신호: 수동박스·좌표·소스·삽화묘사 중 하나라도 있으면 그림이 있어야 한다.
+    // (순수 텍스트 인용문 문항은 passage만 있고 이 네 신호가 없으므로 걸리지 않는다.)
+    const expectsFigure = !!(q.figureBox || q.imageBox || q.imageSourceIndex != null || q.imageDescription);
+    if (expectsFigure && !c.imageUrl) {
+      const reason =
+        q.imageSourceIndex == null && !q.figureBox
+          ? "imageSourceIndex 없음 → src 미지정으로 크롭 전분기 건너뜀(삽화 묘사만 저장됨)"
+          : c.warnings.length
+            ? c.warnings.join("; ")
+            : "크롭 결과 null(사유 미기록)";
+      defects.push({ number: q.number ?? null, kind: "figure", reason });
+    }
+    // 그림 선지: choiceKind==="image"인데 선지 이미지가 하나라도 비면 결손
+    if (q.choiceKind === "image") {
+      const miss: number[] = [];
+      c.choices.forEach((ch, k) => {
+        if (typeof ch === "string" || !ch.imageUrl) miss.push(k + 1);
+      });
+      if (miss.length)
+        defects.push({
+          number: q.number ?? null,
+          kind: "choices",
+          reason: `선지 이미지 결손: ${miss.map((n) => `${n}번`).join(",")}`,
+        });
+    }
+  }
+  return defects;
+}
+
+function reportCoverage(defects: CoverageDefect[]): void {
+  if (!defects.length) {
+    console.log("   ✅ 이미지 커버리지 검수 통과 — 삽화·그림선지 의도 문항 전량 크롭 완료.");
+    return;
+  }
+  console.log(`   ❌ 이미지 결손 ${defects.length}건 (삽화가 의도됐으나 크롭 비어있음):`);
+  for (const d of defects) {
+    console.log(`      #${d.number ?? "?"} [${d.kind === "figure" ? "발문삽화" : "그림선지"}] ${d.reason}`);
+  }
+}
+
+// ---------- 데이터 정합성 검수 (틀린 정답·번호 구멍·선지 결손 차단) ----------
+/**
+ * 이미지와 무관한 "내용 정합성"을 업로드 전에 결정적으로 검사한다. 스키마(zod)가 잡지 못하는
+ * 교차 제약을 본다: answerIndex가 선지 범위를 벗어남(전형적 off-by-one → 프로덕션 정답 오류),
+ * 문항 번호 집합이 1..N 연속·유일이 아님(누락·중복), 그림 선지 길이 불일치(선지 조용히 삭제/증식).
+ */
+type IntegrityDefect = { number: number | null; reason: string };
+function auditDataIntegrity(
+  questions: ImportQuestion[],
+  opts: { fullRound?: boolean } = {}
+): IntegrityDefect[] {
+  const fullRound = opts.fullRound ?? true; // 전체 회차 업로드면 1..N 연속 검사, 부분(--update)이면 생략
+  const defects: IntegrityDefect[] = [];
+  const nums: number[] = [];
+  for (const q of questions) {
+    const n = q.number ?? null;
+    // answerIndex 범위 (0-base, 선지 개수 미만)
+    const nChoices = Array.isArray(q.choices) ? q.choices.length : 0;
+    if (!Number.isInteger(q.answerIndex) || q.answerIndex < 0 || q.answerIndex >= nChoices) {
+      defects.push({
+        number: n,
+        reason: `answerIndex 범위 오류: ${q.answerIndex} (선지 ${nChoices}개 → 0..${nChoices - 1} 이어야 함). 답지 1-base→0-base 변환 누락 가능`,
+      });
+    }
+    // 선지 개수 (스키마 min2max5의 방어적 재확인)
+    if (nChoices < 2) defects.push({ number: n, reason: `선지 ${nChoices}개 — 최소 2개 필요(전사 중 선지 누락 의심)` });
+    // 그림 선지 길이 일치
+    if (q.choiceKind === "image") {
+      const ci = Array.isArray(q.choiceImages) ? q.choiceImages.length : 0;
+      if (ci !== nChoices) {
+        defects.push({ number: n, reason: `그림선지 길이 불일치: choiceImages ${ci} ≠ choices ${nChoices}` });
+      }
+    }
+    // 번호 수집
+    if (n == null || !Number.isInteger(n)) {
+      defects.push({ number: null, reason: `문항 번호 누락/비정수: ${JSON.stringify(q.number)}` });
+    } else {
+      nums.push(n);
+    }
+  }
+  // 번호 집합: 유일성 + 1..N 연속
+  const seen = new Set<number>();
+  const dups: number[] = [];
+  for (const n of nums) {
+    if (seen.has(n)) dups.push(n);
+    seen.add(n);
+  }
+  if (dups.length) defects.push({ number: null, reason: `문항 번호 중복: ${[...new Set(dups)].join(",")}` });
+  if (fullRound) {
+    const N = questions.length;
+    const gaps: number[] = [];
+    for (let i = 1; i <= N; i++) if (!seen.has(i)) gaps.push(i);
+    if (gaps.length) defects.push({ number: null, reason: `문항 번호 누락(1..${N} 기준): ${gaps.join(",")}` });
+  }
+  return defects;
+}
+
+function reportIntegrity(defects: IntegrityDefect[]): void {
+  if (!defects.length) {
+    console.log("   ✅ 데이터 정합성 검수 통과 — answerIndex 범위·번호 집합·선지 개수 정상.");
+    return;
+  }
+  console.log(`   ❌ 데이터 정합성 결함 ${defects.length}건:`);
+  for (const d of defects) console.log(`      ${d.number != null ? `#${d.number} ` : ""}${d.reason}`);
 }
 
 // ---------- 메인 ----------
@@ -376,6 +516,20 @@ async function main() {
     const warned = manifest.filter((m) => (m.warnings as string[]).length);
     console.log(`✅ dry-run 완료 → ${outDir}`);
     console.log(`   크롭 파일 ${manifest.reduce((s, m) => s + (m.files as string[]).length, 0)}개, 경고 문항 ${warned.length}개`);
+    const defects = auditImageCoverage(questions, crops);
+    reportCoverage(defects);
+    if (defects.length) {
+      console.log(
+        "   → 결손 문항은 imageSourceIndex·imageBox(또는 figureBox)를 채워 크롭이 잡히게 하거나,\n" +
+          "     삽화가 실제로 없는 문항이면 imageDescription을 비워라. 해결 전 --upload는 차단된다\n" +
+          "     (검수 후 의도적 예외만 --allow-missing-images로 강제 업로드 가능)."
+      );
+    }
+    const intg = auditDataIntegrity(questions);
+    reportIntegrity(intg);
+    if (intg.length) {
+      console.log("   → 정합성 결함은 --upload/--update를 하드 차단한다(우회 불가). analysis.json을 고쳐 재검수하라.");
+    }
     if (has("montage") || !has("no-montage")) {
       const sheets = await buildMontages(outDir, questions, crops);
       console.log(`   재검수 몽타주 ${sheets.length}장 생성 (montage_N.png · choices_qNN.png) — Read로 사진외 형상·잘림 검수`);
@@ -387,6 +541,22 @@ async function main() {
   if (has("update")) {
     if (examRound == null) {
       console.error("❌ --update는 examRound가 필요합니다(번호로 기존 문항을 찾음).");
+      process.exit(1);
+    }
+    // 이미지 커버리지 게이트: 빈 크롭으로 기존 이미지를 null로 덮어쓰는 사고 방지.
+    const updDefects = auditImageCoverage(questions, crops);
+    reportCoverage(updDefects);
+    if (updDefects.length && !has("allow-missing-images")) {
+      console.error(
+        `\n❌ 교체 차단: 이미지 결손 ${updDefects.length}건 — 이대로면 기존 이미지를 null로 덮어쓴다.\n` +
+          "   좌표를 채워 크롭이 잡히게 하거나, 의도적 예외면 --allow-missing-images 로 강제하라."
+      );
+      process.exit(1);
+    }
+    const updIntg = auditDataIntegrity(questions, { fullRound: false });
+    reportIntegrity(updIntg);
+    if (updIntg.length) {
+      console.error(`\n❌ 교체 차단: 데이터 정합성 결함 ${updIntg.length}건. analysis.json을 고쳐 재검수하라.`);
       process.exit(1);
     }
     const { getQuestions, updateQuestion, getFacts, createRelease } = await import(
@@ -462,9 +632,31 @@ async function main() {
     console.error("모드를 지정하세요: --dry-run · --update · --upload");
     process.exit(1);
   }
-  const { createQuestions, getQuestions, deleteQuestion, createRelease, getFacts } = await import(
-    "../src/lib/firestore.ts"
-  );
+  // 이미지 커버리지 게이트: 삽화가 의도됐는데 크롭이 빈 문항이 있으면 업로드 차단.
+  // (71회 심화 사고 재발 방지 — 침묵 결손이 이미지 없이 프로덕션에 실리는 것을 막는다.)
+  const upDefects = auditImageCoverage(questions, crops);
+  reportCoverage(upDefects);
+  if (upDefects.length && !has("allow-missing-images")) {
+    console.error(
+      `\n❌ 업로드 차단: 이미지 결손 ${upDefects.length}건. 위 문항의 좌표를 채워 크롭이 잡히게 하거나,\n` +
+        "   삽화가 실제로 없는 문항이면 imageDescription을 비운 뒤 dry-run으로 재검수하라.\n" +
+        "   결손이 의도적 예외임을 검수로 확인했다면 --allow-missing-images 로만 강제 진행할 수 있다."
+    );
+    process.exit(1);
+  }
+  if (upDefects.length) {
+    console.warn(`⚠ --allow-missing-images: 이미지 결손 ${upDefects.length}건을 승인하고 업로드를 계속합니다.`);
+  }
+  // 데이터 정합성 게이트 — answerIndex 범위·번호 집합·선지 개수. 우회 불가(틀린 정답/깨진 회차 방지).
+  const upIntg = auditDataIntegrity(questions);
+  reportIntegrity(upIntg);
+  if (upIntg.length) {
+    console.error(`\n❌ 업로드 차단: 데이터 정합성 결함 ${upIntg.length}건. analysis.json을 고쳐 재검수하라.`);
+    process.exit(1);
+  }
+
+  const { createQuestionsAtomic, replaceRoundQuestions, getQuestions, createRelease, getFacts } =
+    await import("../src/lib/firestore.ts");
 
   // factIds 화이트리스트 검증 (실존 id만, 최대 5 — sanitizeFactIds 방식)
   const validIds = new Set((await getFacts()).map((f) => f.id));
@@ -477,8 +669,9 @@ async function main() {
     }
   }
 
-  // 회차 중복 가드
+  // 회차 중복 가드 — 교체 여부만 결정하고, 실제 삭제는 원자 배치 안에서 처리(delete-first 파괴 경로 제거)
   const defLevel = level === "GIBON" ? "GIBON" : "SIMHWA";
+  let doReplace = false;
   if (examRound != null) {
     const existing = await getQuestions({ round: examRound, level: defLevel, limit: 500 });
     if (existing.length) {
@@ -489,9 +682,8 @@ async function main() {
         );
         process.exit(1);
       }
-      console.log(`--replace-round: 기존 ${existing.length}개 삭제 중…`);
-      for (const ex of existing) await deleteQuestion(ex.id);
-      console.log("   삭제 완료");
+      doReplace = true;
+      console.log(`--replace-round: 기존 ${existing.length}개를 원자 배치로 교체합니다(삭제+생성 단일 커밋).`);
     }
   }
 
@@ -516,8 +708,16 @@ async function main() {
     factIds: q.factIds ?? [],
   }));
 
-  const created = await createQuestions(items);
-  console.log(`✅ ${created}문항 저장 완료`);
+  // 원자 업로드: 이미지 전량 선업로드 → 단일 WriteBatch 커밋. 중간 실패 시 기존/신규 모두 무손상.
+  let created: number;
+  if (doReplace && examRound != null) {
+    const res = await replaceRoundQuestions(examRound, defLevel, items);
+    created = res.created;
+    console.log(`✅ ${examRound}회 ${defLevel} 원자 교체 완료 — 삭제 ${res.deleted} · 생성 ${res.created}`);
+  } else {
+    created = await createQuestionsAtomic(items);
+    console.log(`✅ ${created}문항 원자 저장 완료`);
+  }
 
   // 회차 폴더에 문제·보기 사진 정리 저장 (업로드 후에도 재검수 가능)
   const upOut = opt("out") ?? path.join(path.dirname(jsonPath), "crops");

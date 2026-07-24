@@ -1,6 +1,41 @@
 import { randomUUID } from "crypto";
 import { bucket } from "./firebase-admin.ts";
 
+/** 일시 오류(5xx·연결 리셋·타임아웃)로 판단되면 지수 백오프로 재시도한다. */
+function isTransient(e: unknown): boolean {
+  const err = e as { code?: number | string; message?: string };
+  const code = err?.code;
+  if (typeof code === "number" && code >= 500) return true;
+  const s = `${code ?? ""} ${err?.message ?? ""}`;
+  return /ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|\b(500|502|503|504)\b/i.test(s);
+}
+
+/** file.save는 전제조건이 없어 GCS 클라이언트가 자동 재시도하지 않으므로 일시 오류를 직접 재시도한다. */
+async function saveWithRetry(
+  file: ReturnType<ReturnType<typeof bucket>["file"]>,
+  buf: Buffer,
+  mime: string,
+  token: string,
+  attempts = 3
+): Promise<void> {
+  for (let i = 0; ; i++) {
+    try {
+      await file.save(buf, {
+        resumable: false,
+        contentType: mime,
+        metadata: {
+          cacheControl: "public, max-age=31536000",
+          metadata: { firebaseStorageDownloadTokens: token },
+        },
+      });
+      return;
+    } catch (e) {
+      if (i >= attempts - 1 || !isTransient(e)) throw e;
+      await new Promise((r) => setTimeout(r, 300 * 2 ** i)); // 300ms·600ms·1200ms
+    }
+  }
+}
+
 /**
  * base64 data URL 이미지를 Firebase Storage에 업로드하고 공개 접근 가능한
  * 다운로드 URL을 반환한다. (균일 버킷 접근에서도 동작하도록 download token 사용)
@@ -15,14 +50,7 @@ export async function uploadImageFromDataUrl(dataUrl: string, id: string): Promi
   const path = `question-images/${id}.${ext}`;
   const token = randomUUID();
   const file = bucket().file(path);
-  await file.save(buf, {
-    resumable: false,
-    contentType: mime,
-    metadata: {
-      cacheControl: "public, max-age=31536000",
-      metadata: { firebaseStorageDownloadTokens: token },
-    },
-  });
+  await saveWithRetry(file, buf, mime, token);
   const b = bucket().name;
   return `https://firebasestorage.googleapis.com/v0/b/${b}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
 }
