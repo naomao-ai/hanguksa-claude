@@ -47,6 +47,7 @@ function docToQuestion(id: string, d: FirebaseFirestore.DocumentData): QuestionD
     qType: d.qType ?? "기타",
     difficulty: d.difficulty ?? null,
     source: d.source ?? "MANUAL",
+    corePoint: d.corePoint ?? null,
     factIds: Array.isArray(d.factIds) ? d.factIds : [],
     choices: [...choices]
       .sort((a, b) => a.order - b.order)
@@ -136,7 +137,18 @@ export interface NewQuestion {
   examYear?: number | null;
   number?: number | null;
   source?: string;
+  corePoint?: {
+    summary: string;
+    keywords: string[];
+    related: string;
+  } | null;
   factIds?: string[];
+  wikiMeta?: {
+    historicalContext: string;
+    commonMistakes: string;
+    studyTip: string;
+    relatedConcepts: string[];
+  } | null;
 }
 
 async function buildQuestionDoc(id: string, q: NewQuestion, defaultSource: string) {
@@ -167,8 +179,10 @@ async function buildQuestionDoc(id: string, q: NewQuestion, defaultSource: strin
     qType: q.qType || "기타",
     difficulty: q.difficulty ?? null,
     source: q.source ?? defaultSource,
+    corePoint: q.corePoint ?? null,
     choices,
     factIds: Array.isArray(q.factIds) ? q.factIds : [],
+    wikiMeta: q.wikiMeta ?? null,
     createdAt: Timestamp.now(),
   };
 }
@@ -319,6 +333,11 @@ export async function latestRound(): Promise<number | null> {
 /** 문항의 factIds 갱신 (AI 연결용) */
 export async function setQuestionFactIds(id: string, factIds: string[]): Promise<void> {
   await db.collection(COL.questions).doc(id).update({ factIds });
+}
+
+/** 문항의 wikiMeta 갱신 (AI 보강용) */
+export async function setQuestionWikiMeta(id: string, wikiMeta: QuestionDTO["wikiMeta"]): Promise<void> {
+  await db.collection(COL.questions).doc(id).update({ wikiMeta });
 }
 
 /** 연결 대상 문항 조회. missing=factIds 비어있는 것만, all=전체 */

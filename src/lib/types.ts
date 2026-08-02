@@ -12,6 +12,11 @@ export interface QuestionDTO {
   imageUrl: string | null;
   imageDescription: string | null;
   explanation: string | null;
+  corePoint?: {
+    summary: string;
+    keywords: string[];
+    related: string;
+  } | null;
   answerIndex: number;
   era: string;
   topics: string[];
@@ -20,6 +25,13 @@ export interface QuestionDTO {
   source: string;
   /** 연결된 연표(facts) 문서 ID 배열 */
   factIds: string[];
+  /** Wiki용 AI 추가 분석 데이터 */
+  wikiMeta?: {
+    historicalContext: string;
+    commonMistakes: string;
+    studyTip: string;
+    relatedConcepts: string[];
+  } | null;
   choices: { id: string; order: number; text: string; imageUrl: string | null }[];
 }
 
