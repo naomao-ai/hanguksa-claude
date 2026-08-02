@@ -1,10 +1,12 @@
 rules_version = '2';
 
-// 모든 클라이언트 직접 접근을 차단한다.
-// 데이터는 서버(Admin SDK)를 통해서만 읽고 쓰며, Admin SDK는 규칙을 우회한다.
-// 따라서 앱의 API 라우트는 정상 동작하고, 외부에서의 직접 접근은 막힌다.
+// 기본 데이터(questions, facts 등)는 서버(Admin SDK)를 통해서만 접근하며,
+// 사용자 생성 데이터(users)는 클라이언트에서 직접 접근할 수 있도록 보안 규칙을 엽니다.
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
     match /{document=**} {
       allow read, write: if false;
     }

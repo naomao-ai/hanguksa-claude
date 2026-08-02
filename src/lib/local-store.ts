@@ -22,6 +22,8 @@ export interface Attempt {
   level: string;
   /** 풀이 맥락 (없으면 구버전 기록) */
   source?: AttemptSource;
+  /** 문항이 속한 회차 (없으면 구버전 기록 또는 회차 미상 문항) */
+  examRound?: number | null;
 }
 
 /** 모의고사 1회 결과 — "나 지금 합격권인가?"의 근거 데이터 */
@@ -90,7 +92,12 @@ export function loadStore(): Store {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyStore();
-    return { ...emptyStore(), ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    return { 
+      ...emptyStore(), 
+      ...parsed,
+      settings: { ...emptyStore().settings, ...(parsed.settings || {}) }
+    };
   } catch {
     return emptyStore();
   }
@@ -235,6 +242,52 @@ export function weakestEra(s: Store, minAttempts = 3): string | null {
     }
   }
   return worst;
+}
+
+/**
+ * 회차별로 사용자가 푼 고유 문항 수. level을 주면 해당 등급 풀이만 집계.
+ * "미착수/진행중/완료" 판정의 근거 (완료 여부는 회차 총문항수와 비교해 UI에서 결정).
+ */
+export function roundAttemptCounts(s: Store, level?: string): Record<number, number> {
+  const seen: Record<number, Set<string>> = {};
+  for (const a of s.attempts) {
+    if (a.examRound == null) continue;
+    if (level && a.level !== level) continue;
+    (seen[a.examRound] ??= new Set()).add(a.questionId);
+  }
+  const out: Record<number, number> = {};
+  for (const [r, set] of Object.entries(seen)) out[Number(r)] = set.size;
+  return out;
+}
+
+/**
+ * 아직 완료하지 않은 회차 중 가장 높은 회차. 모두 완료했으면 null.
+ * "미착수 회차를 높은순으로 차례대로 진행" 요건의 핵심 셀렉터 (순수 함수).
+ */
+export function nextTargetRound(rounds: number[], completed: Set<number>): number | null {
+  const remaining = rounds.filter((r) => !completed.has(r)).sort((a, b) => b - a);
+  return remaining.length ? remaining[0] : null;
+}
+
+/**
+ * 특정 회차에서 사용자가 틀린 문항의 시대 키를 빈도 내림차순으로 반환.
+ * 다음 회차에서 "유사문제 집중"을 위한 가중치 근거로 쓴다.
+ */
+export function weakErasFromRound(s: Store, round: number, level?: string): string[] {
+  const wrongByQ = new Map<string, { era: string; correct: boolean }>();
+  for (const a of s.attempts) {
+    if (a.examRound !== round) continue;
+    if (level && a.level !== level) continue;
+    // 같은 문항을 여러 번 풀었으면 최신 시도로 정오답 갱신
+    wrongByQ.set(a.questionId, { era: a.era, correct: a.correct });
+  }
+  const freq: Record<string, number> = {};
+  for (const { era, correct } of wrongByQ.values()) {
+    if (!correct) freq[era] = (freq[era] || 0) + 1;
+  }
+  return Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .map(([era]) => era);
 }
 
 /** 오늘 복습 대상(due) questionId 목록 */

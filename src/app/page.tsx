@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/useStore";
-import { dueQuestionIds, checkInToday, latestExam } from "@/lib/local-store";
+import { dueQuestionIds, checkInToday, latestExam, roundAttemptCounts, nextTargetRound } from "@/lib/local-store";
+import { fetchRounds, fetchRoundStats, type RoundStat } from "@/lib/api";
 import { daysBetween } from "@/lib/utils";
+import { eraLabel, qTypeLabel, levelLabel } from "@/lib/domain";
 import DailyKickoff from "@/components/DailyKickoff";
 import {
   Library, PencilLine, Timer, CalendarClock, BarChart3, GitBranch,
   Network, MessageCircleQuestion, Layers, CalendarRange, ScrollText, Flame, Trophy, Target, CalendarCheck,
-  ChevronDown, CheckCircle2, ArrowRight, ClipboardCheck,
+  ChevronDown, CheckCircle2, ArrowRight, ClipboardCheck, TrendingUp,
 } from "lucide-react";
 
 function todayStr(): string {
@@ -27,6 +29,7 @@ const MAIN_TILES = [
 
 // 추가기능 — 필요 시 펼쳐 보는 나머지 도구
 const MORE_TILES = [
+  { href: "/rounds", label: "회차 정복", desc: "미착수 회차 높은순 정복", icon: Trophy },
   { href: "/study", label: "문제풀이", desc: "시대·인물·유형별 학습", icon: PencilLine },
   { href: "/saryo", label: "사료 트레이닝", desc: "자료 제시형 집중", icon: ScrollText },
   { href: "/flashcards", label: "빈출 암기카드", desc: "핵심 키워드 플래시카드", icon: Layers },
@@ -47,9 +50,12 @@ export default function Home() {
   const [rel, setRel] = useState<ReleaseMeta | null>(null);
   const [kickoff, setKickoff] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [rounds, setRounds] = useState<number[]>([]);
+  const [roundStats, setRoundStats] = useState<RoundStat[]>([]);
 
   useEffect(() => {
     fetch("/api/releases").then((r) => r.json()).then(setRel).catch(() => {});
+    Promise.all([fetchRounds(), fetchRoundStats()]).then(([r, s]) => { setRounds(r); setRoundStats(s); });
   }, []);
 
   // 오늘 첫 방문이면 출석 체크 + 시작 팝업 (하루 1회)
@@ -71,11 +77,81 @@ export default function Home() {
     return { due, dday };
   }, [store]);
 
+  // 다음 정복 회차 — 목표 등급 기준, 아직 완료하지 않은 가장 높은 회차
+  const nextRound = useMemo(() => {
+    if (!ready || rounds.length === 0) return null;
+    const level = store.settings.targetLevel;
+    const counts = roundAttemptCounts(store, level);
+    const completed = new Set<number>();
+    const available: number[] = [];
+    for (const r of rounds) {
+      const stat = roundStats.find((x) => x.round === r);
+      const total = stat ? (level === "SIMHWA" ? stat.simhwa : stat.gibon) : 0;
+      if (total <= 0) continue;
+      available.push(r);
+      if ((counts[r] ?? 0) >= total) completed.add(r);
+    }
+    return nextTargetRound(available, completed);
+  }, [ready, store, rounds, roundStats]);
+
   const exam = ready ? latestExam(store) : null;
   const solvedToday = ready && store.streak.studyDays.includes(todayStr());
-  // 최근 7일 내 모의고사가 없으면 실전 점검을 권한다
   const examStale = !exam || Date.now() - exam.ts > 7 * 86_400_000;
   const finalStretch = stats.dday !== null && stats.dday >= 0 && stats.dday <= 7;
+
+  // 오답 패턴 기반 취약 태그 Top 3 추출
+  const topTags = useMemo(() => {
+    if (!ready) return [];
+    const counts: Record<string, number> = {};
+    store.attempts.forEach((a) => {
+      if (!a.correct) {
+        const keyEra = eraLabel(a.era);
+        const keyType = qTypeLabel(a.qType);
+        counts[keyEra] = (counts[keyEra] || 0) + 1;
+        counts[keyType] = (counts[keyType] || 0) + 1;
+      }
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(x => x[0]);
+  }, [store, ready]);
+
+  // 합격 예측률 산출: 최근 모의고사 3회 평균(70%) + 전체 정답률(30%) 가중 평균
+  const passRate = useMemo(() => {
+    if (!ready) return null;
+    const history = store.examHistory;
+    if (history.length === 0 && store.attempts.length === 0) return null;
+
+    let rate = 0;
+    let hasExam = false;
+
+    if (history.length > 0) {
+      // 최근 3회 모의고사 평균 점수 → 100점 만점 기준 예측률
+      const recent = history.slice(-3);
+      const avgScore = recent.reduce((sum, e) => sum + e.score100, 0) / recent.length;
+      hasExam = true;
+
+      if (store.attempts.length >= 10) {
+        // 모의고사 70% + 전체 정답률 30%
+        const correctRate = store.attempts.filter(a => a.correct).length / store.attempts.length * 100;
+        rate = avgScore * 0.7 + correctRate * 0.3;
+      } else {
+        rate = avgScore;
+      }
+    } else if (store.attempts.length >= 10) {
+      // 모의고사 없고 풀이 기록만 있을 때
+      rate = store.attempts.filter(a => a.correct).length / store.attempts.length * 100;
+    } else {
+      return null;
+    }
+
+    // 60점 합격선 기준으로 합격 확률 변환 (sigmoid-like)
+    // rate >= 70 → 90%+, rate = 60 → 50%, rate <= 40 → <10%
+    const diff = rate - 60;
+    const probability = Math.round(100 / (1 + Math.exp(-diff / 8)));
+    return { rate: Math.round(rate), probability, hasExam };
+  }, [store, ready]);
 
   // 시험이 2주 이내면 사료·암기카드 등 막판 도구를 바로 펼쳐 보인다
   useEffect(() => {
@@ -133,6 +209,15 @@ export default function Home() {
                 >
                   <ClipboardCheck size={17} />
                   최근 모의고사 {exam.score100}점 — {exam.passed ? `${exam.grade}급 합격권` : "합격선(60점) 미달"}
+                  {passRate && (
+                    <span className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${
+                      passRate.probability >= 70 ? "bg-green-500/15 text-green-600" :
+                      passRate.probability >= 40 ? "bg-yellow-500/15 text-yellow-700" :
+                      "bg-red-500/15 text-red-500"
+                    }`}>
+                      합격 예측 {passRate.probability}%
+                    </span>
+                  )}
                   <span className="font-normal text-muted">
                     {daysBetween(new Date(exam.ts), new Date()) === 0 ? "오늘" : `${daysBetween(new Date(exam.ts), new Date())}일 전`}
                   </span>
@@ -148,9 +233,26 @@ export default function Home() {
           {/* 오늘 할 일 */}
           {ready && (
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">오늘 할 일</p>
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">오늘 할 일</p>
+                {topTags.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted">집중 복습 추천:</span>
+                    {topTags.map(t => (
+                      <span key={t} className="rounded-full bg-red-500/10 text-red-500 px-2 py-0.5 text-xs font-medium">#{t}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
               {stats.due > 0 && (
                 <TaskRow href="/review" label={`복습 대기 ${stats.due}문항 비우기`} sub="망각곡선이 리셋되기 전에" accent />
+              )}
+              {nextRound != null && (
+                <TaskRow
+                  href="/rounds"
+                  label={`회차 정복 — ${nextRound}회 ${levelLabel(store.settings.targetLevel)} 이어풀기`}
+                  sub="미착수 회차를 높은순으로"
+                />
               )}
               <TaskRow
                 href="/study?warmup=1"
@@ -174,7 +276,7 @@ export default function Home() {
       </section>
 
       {/* 요약 지표 */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Metric icon={<CalendarCheck size={18} className="text-accent" />} label="누적 출석" value={ready ? `${store.attendance.total}일` : "—"} href="/plan" />
         <Metric icon={<Target size={18} />} label="D-day" value={
           ready && stats.dday !== null ? (stats.dday >= 0 ? `D-${stats.dday}` : "지남") : "미설정"
@@ -185,6 +287,12 @@ export default function Home() {
           label="최근 모의고사"
           value={ready ? (exam ? `${exam.score100}점` : "미응시") : "—"}
           href={exam ? "/analytics" : "/exam"}
+        />
+        <Metric
+          icon={<TrendingUp size={18} className={passRate && passRate.probability >= 60 ? "text-green-500" : "text-red-400"} />}
+          label="합격 예측률"
+          value={ready ? (passRate ? `${passRate.probability}%` : "데이터 부족") : "—"}
+          href="/analytics"
         />
         <Metric icon={<CalendarClock size={18} />} label="복습 대기" value={ready ? `${stats.due}` : "—"} href="/review" />
       </section>

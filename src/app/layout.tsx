@@ -3,6 +3,8 @@ import "./globals.css";
 import Nav from "@/components/Nav";
 import UIProvider from "@/components/ui/UIProvider";
 
+import { AuthProvider } from "@/components/auth/AuthProvider";
+
 export const metadata: Metadata = {
   title: "한국사 마스터 — 한능검 대비",
   description:
@@ -34,15 +36,17 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-full flex flex-col font-sans antialiased">
-        <UIProvider>
-          <Nav />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-6 sm:px-4">
-            {children}
-          </main>
-          <footer className="border-t py-6 text-center text-xs text-muted">
-            한국사 마스터 · 학습용 앱 · 업로드 자료는 개인 학습 목적에 한합니다
-          </footer>
-        </UIProvider>
+        <AuthProvider>
+          <UIProvider>
+            <Nav />
+            <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-6 sm:px-4">
+              {children}
+            </main>
+            <footer className="border-t py-6 text-center text-xs text-muted">
+              한국사 마스터 · 학습용 앱 · 업로드 자료는 개인 학습 목적에 한합니다
+            </footer>
+          </UIProvider>
+        </AuthProvider>
       </body>
     </html>
   );

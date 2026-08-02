@@ -6,6 +6,10 @@ npm-debug.log*
 prisma/dev.db
 prisma/dev.db-journal
 src/generated
-.env*
+.env.local
 *.md
 .claude
+exam
+_import
+_pdf78*
+scratch_*.png

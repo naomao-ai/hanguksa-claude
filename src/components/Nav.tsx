@@ -17,6 +17,7 @@ import {
   Info,
   ShieldCheck,
   MonitorPlay,
+  Trophy,
   Moon,
   Sun,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const NAV = [
   { href: "/", label: "홈", icon: Home },
   { href: "/bank", label: "문제은행", icon: Library },
   { href: "/study", label: "문제풀이", icon: PencilLine },
+  { href: "/rounds", label: "회차 정복", icon: Trophy },
   { href: "/exam", label: "모의고사", icon: Timer },
   { href: "/review", label: "오답·복습", icon: CalendarClock },
   { href: "/analytics", label: "통계·경향", icon: BarChart3 },
@@ -66,8 +68,12 @@ function ThemeToggle() {
   );
 }
 
+import { useAuth } from "@/components/auth/AuthProvider";
+import { LogIn, LogOut, User as UserIcon } from "lucide-react";
+
 export default function Nav() {
   const pathname = usePathname();
+  const { user, loading, loginWithGoogle, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 border-b bg-surface/80 backdrop-blur">
@@ -99,6 +105,35 @@ export default function Nav() {
             );
           })}
         </nav>
+
+        {/* Auth Section */}
+        <div className="ml-2 flex items-center gap-1 border-l pl-2 border-border">
+          {!loading && (
+            user ? (
+              <div className="flex items-center gap-2">
+                <Link href="/mypage/scraps" className="hidden text-sm font-medium hover:underline sm:inline px-2">
+                  {user.displayName || "학습자"}님
+                </Link>
+                <button
+                  onClick={logout}
+                  className="btn btn-ghost p-2 text-muted"
+                  title="로그아웃"
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={loginWithGoogle}
+                className="btn btn-primary px-3 py-1.5 text-sm flex items-center gap-1.5"
+              >
+                <LogIn size={16} />
+                <span className="hidden sm:inline">로그인</span>
+              </button>
+            )
+          )}
+        </div>
+
         <Link
           href="/admin"
           aria-label="관리자"

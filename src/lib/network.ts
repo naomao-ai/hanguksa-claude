@@ -1,5 +1,28 @@
 import type { FactDTO } from "@/lib/types";
 
+export interface GraphNode {
+  id: string;
+  type: "fact" | "keyword" | "era";
+  label: string;
+  era?: string;
+  year?: number | null;
+  category?: string | null;
+  importance?: number;
+  questionCount?: number;
+  color?: string;
+}
+
+export interface GraphEdge {
+  source: string | any;
+  target: string | any;
+  type: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 export function buildFactMap(facts: FactDTO[]): Map<string, FactDTO> {
   return new Map(facts.map((f) => [f.id, f]));
 }

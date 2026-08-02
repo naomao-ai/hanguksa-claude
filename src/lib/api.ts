@@ -51,6 +51,26 @@ export async function fetchRounds(): Promise<number[]> {
   }
 }
 
+export interface RoundStat {
+  round: number;
+  total: number;
+  simhwa: number;
+  gibon: number;
+  eras: Record<string, number>;
+}
+
+/** 회차별 문항 수(등급별 포함) — 회차 완료 판정용 */
+export async function fetchRoundStats(): Promise<RoundStat[]> {
+  try {
+    const res = await fetch("/api/analytics/trends");
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.byRound ?? []) as RoundStat[];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchFacts(era?: string): Promise<FactDTO[]> {
   const sp = new URLSearchParams();
   if (era) sp.set("era", era);
@@ -64,4 +84,21 @@ export async function fetchVideos(): Promise<VideoDTO[]> {
   if (!res.ok) return [];
   const data = await res.json();
   return data.videos ?? [];
+}
+
+export interface GraphFilter {
+  era?: string;
+  category?: string;
+  q?: string;
+}
+
+export async function fetchGraphData(f: GraphFilter = {}): Promise<import('./network').GraphData> {
+  const sp = new URLSearchParams();
+  if (f.era) sp.set("era", f.era);
+  if (f.category) sp.set("category", f.category);
+  if (f.q) sp.set("q", f.q);
+  const res = await fetch(`/api/graph?${sp.toString()}`);
+  if (!res.ok) return { nodes: [], edges: [] };
+  const data = await res.json();
+  return data.graph ?? { nodes: [], edges: [] };
 }

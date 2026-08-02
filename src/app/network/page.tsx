@@ -1,145 +1,294 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { fetchFacts } from "@/lib/api";
-import { ERAS, eraColor, eraLabel } from "@/lib/domain";
-import { buildFactMap, resolveRelations, pushPath } from "@/lib/network";
+import { useEffect, useMemo, useState, useRef, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { fetchFacts, fetchGraphData, type GraphFilter } from "@/lib/api";
+import { ERAS, FACT_CATEGORIES } from "@/lib/domain";
+import { buildFactMap } from "@/lib/network";
 import type { FactDTO } from "@/lib/types";
-import { Loader2, Network as NetIcon, ArrowLeft, ArrowRight } from "lucide-react";
-
-function yearLabel(y: number | null): string {
-  if (y == null) return "";
-  return y < 0 ? `BC ${-y}` : `${y}`;
-}
+import type { GraphData, GraphNode, GraphEdge } from "@/lib/network";
+import { Loader2, Search, X } from "lucide-react";
+import WikiPanel from "@/components/WikiPanel";
+import * as d3 from "d3";
 
 function NetworkPage() {
-  const params = useSearchParams();
-  const initialFactId = params.get("factId");
-  const [facts, setFacts] = useState<FactDTO[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [era, setEra] = useState<string>("");
-  const [path, setPath] = useState<string[]>([]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialFactId = searchParams.get("factId");
 
+  const [facts, setFacts] = useState<FactDTO[]>([]);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [era, setEra] = useState<string>("");
+  const [category, setCategory] = useState<string>("");
+  const [query, setQuery] = useState<string>("");
+  const [debouncedQuery, setDebouncedQuery] = useState<string>("");
+
+  const [selectedFactId, setSelectedFactId] = useState<string | null>(initialFactId);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const simulationRef = useRef<d3.Simulation<d3.SimulationNodeDatum, undefined> | null>(null);
+  const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  const nodesRef = useRef<any[]>([]);
+  const edgesRef = useRef<any[]>([]);
+
+  // 1. Debounce search query
   useEffect(() => {
-    fetchFacts().then((f) => { setFacts(f); setLoading(false); });
+    const timer = setTimeout(() => setDebouncedQuery(query), 500);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  // 2. Fetch Facts for factMap
+  useEffect(() => {
+    fetchFacts().then((f) => setFacts(f));
   }, []);
-  useEffect(() => {
-    if (initialFactId) setPath([initialFactId]);
-  }, [initialFactId]);
 
   const factMap = useMemo(() => buildFactMap(facts), [facts]);
-  const centerId = path[path.length - 1] ?? null;
-  const center = centerId ? factMap.get(centerId) ?? null : null;
-  const rel = useMemo(
-    () => (center ? resolveRelations(center, factMap) : { prev: [], next: [] }),
-    [center, factMap]
-  );
 
-  function go(id: string) { setPath((p) => pushPath(p, id)); }
+  // 3. Fetch Graph Data
+  useEffect(() => {
+    setLoading(true);
+    const filter: GraphFilter = { era, category, q: debouncedQuery };
+    fetchGraphData(filter).then((data) => {
+      // D3 modifies nodes and edges in place, so we make a deep copy for the simulation
+      nodesRef.current = data.nodes.map(d => ({ ...d }));
+      edgesRef.current = data.edges.map(d => ({ ...d }));
+      setGraphData(data);
+      setLoading(false);
+    });
+  }, [era, category, debouncedQuery]);
 
-  if (loading) return <div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>;
+  // 4. D3 Simulation & Rendering
+  useEffect(() => {
+    if (!graphData || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    // Set actual canvas resolution based on device pixel ratio
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const nodes = nodesRef.current;
+    const edges = edgesRef.current;
+
+    // Simulation
+    if (simulationRef.current) simulationRef.current.stop();
+    
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(edges).id((d: any) => d.id).distance((d: any) => d.type === "era-link" ? 150 : 50))
+      .force("charge", d3.forceManyBody().strength(-100))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collide", d3.forceCollide().radius((d: any) => getRadius(d) + 5));
+
+    simulationRef.current = simulation;
+
+    // Render loop
+    simulation.on("tick", () => {
+      ctx.save();
+      ctx.clearRect(0, 0, width, height);
+      ctx.translate(transformRef.current.x, transformRef.current.y);
+      ctx.scale(transformRef.current.k, transformRef.current.k);
+
+      // Draw edges
+      ctx.globalAlpha = 0.6;
+      for (const link of edges) {
+        ctx.beginPath();
+        ctx.moveTo(link.source.x, link.source.y);
+        ctx.lineTo(link.target.x, link.target.y);
+        ctx.strokeStyle = link.type === "era-link" ? "#e2e8f0" : "#cbd5e1";
+        ctx.lineWidth = link.type === "era-link" ? 2 : 1;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1.0;
+
+      // Draw nodes
+      for (const node of nodes) {
+        const isSelected = node.id === selectedFactId;
+        const r = getRadius(node);
+
+        ctx.beginPath();
+        if (node.type === "keyword") {
+          // Diamond
+          ctx.moveTo(node.x, node.y - r);
+          ctx.lineTo(node.x + r, node.y);
+          ctx.lineTo(node.x, node.y + r);
+          ctx.lineTo(node.x - r, node.y);
+        } else {
+          // Circle
+          ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+        }
+        
+        ctx.fillStyle = getColor(node, isSelected);
+        ctx.fill();
+        
+        if (isSelected || node.type === "era") {
+          ctx.lineWidth = isSelected ? 3 : 2;
+          ctx.strokeStyle = isSelected ? "#0f172a" : "#fff";
+          ctx.stroke();
+        }
+
+        // Labels
+        if (node.type === "era" || node.importance === 3 || isSelected) {
+          ctx.font = node.type === "era" ? "bold 14px sans-serif" : "11px sans-serif";
+          ctx.fillStyle = "#334155";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(node.label, node.x, node.y + r + 12);
+        }
+      }
+      ctx.restore();
+    });
+
+    // Zoom
+    const zoom = d3.zoom<HTMLCanvasElement, unknown>()
+      .scaleExtent([0.1, 4])
+      .on("zoom", (e) => {
+        transformRef.current = e.transform;
+        simulation.alpha(0.1).restart();
+      });
+    
+    d3.select(canvas).call(zoom);
+
+    // Click detection
+    d3.select(canvas).on("click", (e) => {
+      const transform = transformRef.current;
+      const x = transform.invertX(e.offsetX);
+      const y = transform.invertY(e.offsetY);
+
+      // Find closest node
+      let closest: any = null;
+      let minDst = Infinity;
+      for (const node of nodes) {
+        const dx = node.x - x;
+        const dy = node.y - y;
+        const dst = dx * dx + dy * dy;
+        const r = getRadius(node);
+        if (dst < r * r * 2 && dst < minDst) { // Some tolerance
+          closest = node;
+          minDst = dst;
+        }
+      }
+
+      if (closest) {
+        if (closest.type === "fact") {
+          setSelectedFactId(closest.id);
+          router.replace(`?factId=${closest.id}`, { scroll: false });
+        } else if (closest.type === "keyword") {
+          setQuery(closest.label);
+        }
+      } else {
+        setSelectedFactId(null);
+        router.replace(`/network`, { scroll: false });
+      }
+    });
+
+    return () => {
+      simulation.stop();
+    };
+  }, [graphData, selectedFactId, router]);
+
+  function getRadius(node: any) {
+    if (node.type === "era") return 24;
+    if (node.type === "keyword") return 6;
+    if (node.importance === 3) return 14;
+    if (node.importance === 2) return 10;
+    return 6;
+  }
+
+  function getColor(node: any, isSelected: boolean) {
+    if (node.type === "keyword") return isSelected ? "#64748b" : "#e2e8f0";
+    if (node.type === "era") return node.color || "#94a3b8";
+    
+    // Fact node uses Era color
+    const eraColorHex = ERAS.find(e => e.key === node.era)?.color || "#94a3b8";
+    return eraColorHex;
+  }
+
+  const selectedFact = selectedFactId ? factMap.get(selectedFactId) : null;
 
   return (
-    <div className="space-y-4">
-      <header>
-        <h1 className="flex items-center gap-2 text-2xl font-bold"><NetIcon className="text-primary" /> 사건 관계망</h1>
-        <p className="text-muted">한 사건의 이전(배경·원인)·이후(결과·영향)를 따라 흐름을 탐색합니다.</p>
-      </header>
-
-      {!center ? (
-        // 진입: 시대 선택 → 사건 목록
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-1.5">
-            {ERAS.map((e) => (
-              <button key={e.key} onClick={() => setEra(e.key)}
-                className={`rounded-full px-3 py-1.5 text-sm ${era === e.key ? "text-white" : "border bg-surface"}`}
-                style={era === e.key ? { background: e.color } : undefined}>
+    <div className="flex h-[calc(100vh-140px)] w-full flex-col md:flex-row overflow-hidden rounded-xl border bg-background shadow-sm">
+      {/* Graph Area */}
+      <div className="relative flex-1 bg-slate-50/50 flex flex-col">
+        {/* Toolbar */}
+        <div className="absolute left-4 right-4 top-4 z-10 flex flex-wrap items-center gap-3">
+          <div className="relative w-64 shadow-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+            <input 
+              type="text"
+              placeholder="연표, 키워드 검색..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full rounded-full border bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-primary"
+            />
+            {query && (
+              <button onClick={() => setQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <div className="flex gap-1 bg-white p-1 rounded-full border shadow-sm">
+            <button onClick={() => setEra("")} className={`px-3 py-1 rounded-full text-xs font-medium ${era === "" ? "bg-slate-800 text-white" : "text-muted-foreground hover:bg-slate-100"}`}>전체 시대</button>
+            {ERAS.map(e => (
+              <button key={e.key} onClick={() => setEra(era === e.key ? "" : e.key)} className={`px-3 py-1 rounded-full text-xs font-medium transition-colors`} style={era === e.key ? { backgroundColor: e.color, color: "#fff" } : { color: e.color }}>
                 {e.label}
               </button>
             ))}
           </div>
-          {era ? (
-            <ul className="space-y-2">
-              {facts.filter((f) => f.era === era).sort((a, b) => (a.year ?? 0) - (b.year ?? 0)).map((f) => (
-                <li key={f.id}>
-                  <button onClick={() => setPath([f.id])} className="card flex w-full items-center gap-3 p-3 text-left hover:border-primary/40">
-                    <span className="text-xs text-muted">{yearLabel(f.year)}</span>
-                    <span className="font-semibold">{f.title}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="card p-8 text-center text-muted">시대를 선택하면 사건 목록이 나옵니다.</div>
-          )}
+          <select 
+            value={category} 
+            onChange={(e) => setCategory(e.target.value)}
+            className="rounded-full border bg-white px-3 py-1.5 text-sm shadow-sm outline-none"
+          >
+            <option value="">모든 분류</option>
+            {FACT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
-      ) : (
-        // 탐색 뷰: breadcrumb + 이전 | 현재 | 이후
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-1 text-sm">
-            <button onClick={() => setPath([])} className="text-muted hover:text-foreground">시대 선택</button>
-            {path.map((id, i) => {
-              const f = factMap.get(id);
-              return (
-                <span key={id} className="flex items-center gap-1">
-                  <span className="text-muted">/</span>
-                  <button onClick={() => setPath(path.slice(0, i + 1))}
-                    className={i === path.length - 1 ? "font-semibold text-primary" : "text-muted hover:text-foreground"}>
-                    {f?.title ?? id}
-                  </button>
-                </span>
-              );
-            })}
-          </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_1.2fr_1fr]">
-            <RelColumn title="이전 (배경·원인)" icon={<ArrowLeft size={14} />} items={rel.prev} onGo={go} align="end" />
-
-            <div className="card border-primary/40 p-4">
-              {center.category || center.importance || center.period ? (
-                <div className="mb-2 flex flex-wrap gap-1.5 text-xs">
-                  {center.category && <span className="rounded-full bg-primary/12 px-2 py-0.5 text-primary">{center.category}</span>}
-                  {center.importance ? <span className="rounded-full bg-accent/12 px-2 py-0.5 text-accent">{"★".repeat(center.importance)}</span> : null}
-                  {center.period && <span className="rounded-full bg-surface-2 px-2 py-0.5">{center.period}</span>}
-                </div>
-              ) : null}
-              <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ background: eraColor(center.era) }}>
-                {eraLabel(center.era)} · {yearLabel(center.year)}
-              </span>
-              <h2 className="mt-2 text-xl font-bold">{center.title}</h2>
-              <p className="mt-2 text-sm leading-relaxed">{center.body}</p>
-              {(center.questionCount ?? 0) > 0 && (
-                <a href={`/study?factId=${center.id}`} className="btn btn-primary mt-3 w-full py-2">관련 문제 {center.questionCount}개 풀기</a>
-              )}
+        {loading && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/50 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="animate-spin text-primary" size={32} />
+              <span className="text-sm text-muted-foreground">지식 그래프 구성 중...</span>
             </div>
-
-            <RelColumn title="이후 (결과·영향)" icon={<ArrowRight size={14} />} items={rel.next} onGo={go} align="start" />
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
+        )}
 
-function RelColumn({ title, icon, items, onGo, align }: {
-  title: string; icon: React.ReactNode; items: FactDTO[]; onGo: (id: string) => void; align: "start" | "end";
-}) {
-  return (
-    <div className="space-y-2">
-      <div className={`flex items-center gap-1 text-xs font-semibold text-muted ${align === "end" ? "md:justify-end" : ""}`}>
-        {icon} {title}
+        <canvas ref={canvasRef} className="h-full w-full outline-none cursor-grab active:cursor-grabbing" />
+        
+        <div className="absolute bottom-4 left-4 text-xs text-muted-foreground bg-white/80 p-2 rounded border">
+          • 마우스 드래그 및 휠(줌)로 탐색<br/>
+          • 큰 원: 시대 / 색상 원: 사건 / 다이아몬드: 키워드
+        </div>
       </div>
-      {items.length === 0 ? (
-        <div className="card p-3 text-center text-xs text-muted">관계 없음</div>
-      ) : (
-        items.map((f) => (
-          <button key={f.id} onClick={() => onGo(f.id)} className="card w-full p-3 text-left hover:border-primary/40">
-            <span className="block text-xs text-muted">{yearLabel(f.year)}</span>
-            <span className="block text-sm font-semibold">{f.title}</span>
-            <span className="line-clamp-2 text-xs text-muted">{f.body}</span>
-          </button>
-        ))
+
+      {/* Slide-over Wiki Panel */}
+      {selectedFact && (
+        <div className="w-full md:w-[400px] lg:w-[480px] h-full flex-shrink-0 bg-white transition-all duration-300 border-l">
+          <WikiPanel 
+            fact={selectedFact} 
+            factMap={factMap} 
+            onClose={() => {
+              setSelectedFactId(null);
+              router.replace(`/network`, { scroll: false });
+            }}
+            onNavigate={(id) => {
+              setSelectedFactId(id);
+              router.replace(`?factId=${id}`, { scroll: false });
+            }}
+            onKeywordClick={(kw) => {
+              setQuery(kw);
+            }}
+          />
+        </div>
       )}
     </div>
   );
@@ -147,8 +296,10 @@ function RelColumn({ title, icon, items, onGo, align }: {
 
 export default function NetworkPageWrapper() {
   return (
-    <Suspense fallback={<div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>}>
-      <NetworkPage />
-    </Suspense>
+    <div className="p-4">
+      <Suspense fallback={<div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>}>
+        <NetworkPage />
+      </Suspense>
+    </div>
   );
 }

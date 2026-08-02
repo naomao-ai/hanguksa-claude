@@ -10,7 +10,7 @@ export async function GET() {
   const byEra: Record<string, number> = {};
   const byType: Record<string, number> = {};
   const byDifficulty: Record<string, number> = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
-  const byRound: Record<string, { round: number; total: number; eras: Record<string, number> }> = {};
+  const byRound: Record<string, { round: number; total: number; simhwa: number; gibon: number; eras: Record<string, number> }> = {};
   let simhwa = 0;
   let gibon = 0;
   let diffSum = 0;
@@ -28,8 +28,10 @@ export async function GET() {
     }
     if (q.examRound != null) {
       const key = String(q.examRound);
-      if (!byRound[key]) byRound[key] = { round: q.examRound, total: 0, eras: {} };
+      if (!byRound[key]) byRound[key] = { round: q.examRound, total: 0, simhwa: 0, gibon: 0, eras: {} };
       byRound[key].total++;
+      if (q.level === "SIMHWA") byRound[key].simhwa++;
+      else byRound[key].gibon++;
       byRound[key].eras[q.era] = (byRound[key].eras[q.era] || 0) + 1;
     }
   }

@@ -61,6 +61,11 @@ export const AnalyzedQuestionSchema = z.object({
   /** 정답 근거 출처: "답지"=답안지에서 확인, "추정"=한국사 지식으로 추정 */
   answerSource: z.enum(["답지", "추정"]).nullable().optional(),
   explanation: z.string().nullable().optional(),
+  corePoint: z.object({
+    summary: z.string(),
+    keywords: z.array(z.string()),
+    related: z.string(),
+  }).nullable().optional(),
   era: z.enum(ERA_KEYS as [string, ...string[]]),
   topics: z.array(z.string()).default([]),
   qType: z.enum(qTypeKeys).default("기타"),
@@ -195,6 +200,16 @@ export const ANALYZE_TOOL_SCHEMA = {
               "정답 출처. 답안지에서 확인했으면 '답지', 한국사 지식으로 추정했으면 '추정'",
           },
           explanation: { type: ["string", "null"], description: "해설(있으면)" },
+          corePoint: {
+            type: ["object", "null"],
+            description: "핵심 요약 객체(선택 사항)",
+            properties: {
+              summary: { type: "string", description: "핵심요약 (1~2줄)" },
+              keywords: { type: "array", items: { type: "string" }, description: "핵심키워드 (문제와 답과 관련된 키워드 1~3개)" },
+              related: { type: "string", description: "연관내용 (1~2줄)" }
+            },
+            required: ["summary", "keywords", "related"]
+          },
           era: {
             type: "string",
             enum: ERA_KEYS,

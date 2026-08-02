@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   checkInToday, recordExamResult, latestExam, weakestEra,
+  roundAttemptCounts, nextTargetRound, weakErasFromRound,
   type Store, type Attempt,
 } from "./local-store";
 
@@ -73,5 +74,61 @@ describe("weakestEra", () => {
     const s = store();
     s.attempts = [attempt("goryeo", false)];
     expect(weakestEra(s)).toBeNull();
+  });
+});
+
+function rAttempt(round: number, qid: string, correct: boolean, era = "goryeo", level = "SIMHWA"): Attempt {
+  return { questionId: qid, correct, selected: 0, ts: 0, era, qType: "기타", level, examRound: round };
+}
+
+describe("roundAttemptCounts", () => {
+  it("회차별 고유 문항 수를 센다(중복 문항 1회)", () => {
+    const s = store();
+    s.attempts = [
+      rAttempt(77, "a", true), rAttempt(77, "a", false), rAttempt(77, "b", true),
+      rAttempt(76, "c", true),
+    ];
+    expect(roundAttemptCounts(s)).toEqual({ 77: 2, 76: 1 });
+  });
+
+  it("등급 필터가 적용된다", () => {
+    const s = store();
+    s.attempts = [rAttempt(77, "a", true, "goryeo", "SIMHWA"), rAttempt(77, "b", true, "goryeo", "GIBON")];
+    expect(roundAttemptCounts(s, "SIMHWA")).toEqual({ 77: 1 });
+  });
+
+  it("examRound 없는(구버전) 기록은 무시한다", () => {
+    const s = store();
+    s.attempts = [attempt("goryeo", true)]; // examRound 없음
+    expect(roundAttemptCounts(s)).toEqual({});
+  });
+});
+
+describe("nextTargetRound", () => {
+  it("완료하지 않은 회차 중 가장 높은 회차를 고른다", () => {
+    expect(nextTargetRound([77, 76, 75, 74], new Set([77, 75]))).toBe(76);
+  });
+  it("모두 완료면 null", () => {
+    expect(nextTargetRound([76, 75], new Set([76, 75]))).toBeNull();
+  });
+  it("정렬되지 않은 입력도 처리한다", () => {
+    expect(nextTargetRound([74, 77, 75], new Set([77]))).toBe(75);
+  });
+});
+
+describe("weakErasFromRound", () => {
+  it("해당 회차 오답 시대를 빈도 내림차순으로 반환", () => {
+    const s = store();
+    s.attempts = [
+      rAttempt(77, "a", false, "joseon"), rAttempt(77, "b", false, "joseon"),
+      rAttempt(77, "c", false, "goryeo"), rAttempt(77, "d", true, "samguk"),
+      rAttempt(76, "e", false, "gaya"), // 다른 회차는 제외
+    ];
+    expect(weakErasFromRound(s, 77)).toEqual(["joseon", "goryeo"]);
+  });
+  it("정답 문항만 있으면 빈 배열", () => {
+    const s = store();
+    s.attempts = [rAttempt(77, "a", true, "joseon")];
+    expect(weakErasFromRound(s, 77)).toEqual([]);
   });
 });

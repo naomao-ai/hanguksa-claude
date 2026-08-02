@@ -598,6 +598,7 @@ async function main() {
         qType: q.qType || "기타",
         difficulty: q.difficulty ?? null,
         choices: crops[i].choices,
+        corePoint: q.corePoint ?? null,
         factIds: q.factIds ?? [],
       };
       const res = await updateQuestion(id, item);
@@ -705,6 +706,7 @@ async function main() {
     difficulty: q.difficulty ?? null,
     choices: crops[i].choices,
     source: "UPLOAD",
+    corePoint: q.corePoint ?? null,
     factIds: q.factIds ?? [],
   }));
 
