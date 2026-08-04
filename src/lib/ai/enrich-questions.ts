@@ -66,7 +66,8 @@ export async function enrichQuestion(question: QuestionDTO): Promise<QuestionDTO
     const block = res.content.find((b) => b.type === "tool_use");
     const input = block && block.type === "tool_use" ? (block.input as { wikiMeta?: QuestionDTO["wikiMeta"] }) : {};
     return input.wikiMeta || null;
-  } catch {
+  } catch (err) {
+    console.error(`Error enriching question ${question.id}:`, err);
     return null;
   }
 }

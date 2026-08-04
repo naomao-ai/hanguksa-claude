@@ -26,12 +26,22 @@ export async function POST(req: NextRequest) {
       if (q) {
         context += `[문항] ${q.stem}\n선지: ${q.choices
           .map((c, i) => `${i + 1}. ${c.text}`)
-          .join(" / ")}\n정답: ${q.answerIndex + 1}번\n해설: ${q.explanation ?? "(없음)"}\n\n`;
+          .join(" / ")}\n정답: ${q.answerIndex + 1}번\n해설: ${q.explanation ?? "(없음)"}\n`;
+          
+        if (q.wikiMeta) {
+          context += `관련 맥락: ${q.wikiMeta.historicalContext}\n`;
+          if (q.wikiMeta.studyTip) context += `암기 팁: ${q.wikiMeta.studyTip}\n`;
+          if (q.wikiMeta.commonMistakes) context += `오답 노트: ${q.wikiMeta.commonMistakes}\n`;
+        }
+        context += `\n`;
       }
     }
 
-    // 키워드 기반 관련 사실 검색
-    const terms = last.split(/[\s,.·?!]+/).filter((t) => t.length >= 2).slice(0, 8);
+    // 불용어(조사 등) 간이 제거 후 2글자 이상 키워드 추출
+    const terms = last.split(/[\s,.·?!]+/)
+      .map(t => t.replace(/(은|는|이|가|을|를|의|에|로|으로|에서)+$/, ''))
+      .filter((t) => t.length >= 2)
+      .slice(0, 8);
     if (terms.length) {
       const facts = await searchFacts(terms, 5);
       for (const f of facts) {

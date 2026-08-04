@@ -26,15 +26,15 @@ export interface EraDef {
 }
 
 export const ERAS: EraDef[] = [
-  { key: "prehistoric", label: "선사 시대", start: -700000, end: -2333, color: "#8d6e63" },
-  { key: "gojoseon", label: "고조선·연맹왕국", start: -2333, end: -57, color: "#a1887f" },
-  { key: "samguk", label: "삼국 시대", start: -57, end: 676, color: "#ef6c00" },
-  { key: "nambukguk", label: "남북국 시대", start: 676, end: 935, color: "#f9a825" },
-  { key: "goryeo", label: "고려 시대", start: 918, end: 1392, color: "#2e7d32" },
-  { key: "joseon", label: "조선 시대", start: 1392, end: 1863, color: "#1565c0" },
-  { key: "modern", label: "근대 (개항기)", start: 1863, end: 1910, color: "#6a1b9a" },
-  { key: "japanese", label: "일제 강점기", start: 1910, end: 1945, color: "#b71c1c" },
-  { key: "contemporary", label: "현대", start: 1945, end: 2025, color: "#00838f" },
+  { key: "prehistoric", label: "선사 시대", start: -700000, end: -2333, color: "#D6E4E5" }, // Soft Gray Blue
+  { key: "gojoseon", label: "고조선·연맹왕국", start: -2333, end: -57, color: "#E2C2B3" }, // Soft Beige
+  { key: "samguk", label: "삼국 시대", start: -57, end: 676, color: "#FFD3B6" }, // Soft Apricot
+  { key: "nambukguk", label: "남북국 시대", start: 676, end: 935, color: "#FFAAA5" }, // Soft Salmon
+  { key: "goryeo", label: "고려 시대", start: 918, end: 1392, color: "#A8E6CF" }, // Soft Mint
+  { key: "joseon", label: "조선 시대", start: 1392, end: 1863, color: "#BAE1FF" }, // Soft Powder Blue
+  { key: "modern", label: "근대 (개항기)", start: 1863, end: 1910, color: "#CBAACB" }, // Soft Violet
+  { key: "japanese", label: "일제 강점기", start: 1910, end: 1945, color: "#FFB3BA" }, // Soft Pink
+  { key: "contemporary", label: "현대", start: 1945, end: 2025, color: "#FFFFBA" }, // Soft Yellow
 ];
 
 export const ERA_KEYS = ERAS.map((e) => e.key);

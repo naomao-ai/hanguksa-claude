@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchFacts } from "@/lib/api";
 import { ERAS, eraColor, eraLabel } from "@/lib/domain";
+import HighlightedText from "@/components/HighlightedText";
 import type { FactDTO } from "@/lib/types";
 import { Loader2, GitBranch } from "lucide-react";
 
@@ -104,16 +105,21 @@ export default function TimelinePage() {
             >
               {eraLabel(active.era)} · {yearLabel(active.year)}
             </span>
-            <h3 className="mb-2 text-xl font-bold">{active.title}</h3>
-            <p className="mb-3 leading-relaxed">{active.body}</p>
-            {active.detail.length > 0 && (
-              <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-                <p className="mb-1.5 text-xs font-semibold text-primary">상세 설명</p>
-                <ul className="space-y-1">
+            <h3 className="mb-3 text-2xl font-bold">{active.title}</h3>
+            
+            {active.body && (
+              <div className="mb-4 leading-relaxed text-sm font-medium text-foreground/90 bg-surface-2 p-3.5 rounded-lg border border-border/50 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-primary/40"></div>
+                {active.body}
+              </div>
+            )}
+            
+            {active.detail && active.detail.length > 0 && (
+              <div className="mb-5 pb-4 border-b border-border/50">
+                <ul className="list-disc list-outside ml-5 space-y-2.5 text-sm marker:text-muted">
                   {active.detail.map((d, i) => (
-                    <li key={i} className="flex gap-1.5 text-sm leading-relaxed">
-                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                      <span>{d}</span>
+                    <li key={i} className="leading-relaxed">
+                      <HighlightedText text={d} keywords={active.keywords} />
                     </li>
                   ))}
                 </ul>

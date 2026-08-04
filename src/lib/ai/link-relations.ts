@@ -1,17 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { getFacts, setFactRelations } from "@/lib/firestore";
 import { adjacentEras } from "@/lib/domain";
 import type { FactDTO } from "@/lib/types";
 
-const MODEL = process.env.CLAUDE_MODEL || "claude-opus-4-8";
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) {
-    if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY 미설정");
-    _client = new Anthropic();
-  }
-  return _client;
-}
+const OLLAMA_URL = "http://localhost:11434/api/generate";
+const MODEL = "hf.co/lmstudio-community/gemma-4-E4B-it-GGUF:latest";
 
 const MAX_CANDIDATES = 60;
 const MAX_LINKS = 5;
@@ -50,26 +42,17 @@ export function sanitizeRelations(
   return { prevFactIds: prev, nextFactIds: next };
 }
 
-const REL_TOOL = {
-  name: "select_relations",
-  description: "한 사건의 이전(배경·원인)·이후(결과·영향) 연표 항목 id를 선택한다.",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      prevFactIds: { type: "array", items: { type: "string" }, description: "이 사건의 직접적 배경·원인이 된 연표 id. 없으면 빈 배열. 최대 5개." },
-      nextFactIds: { type: "array", items: { type: "string" }, description: "이 사건의 직접적 결과·영향이 된 연표 id. 없으면 빈 배열. 최대 5개." },
-    },
-    required: ["prevFactIds", "nextFactIds"],
-  },
-};
-
 const REL_SYSTEM = `당신은 한국사 사건의 인과·흐름 관계를 연결하는 전문가입니다.
 주어진 '대상 사건'에 대해 후보 연표 중에서:
 - prevFactIds: 대상 사건의 직접적 배경·원인이 된 사건만 고릅니다(대개 더 이른 시기).
 - nextFactIds: 대상 사건의 직접적 결과·영향이 된 사건만 고릅니다(대개 더 늦은 시기).
 - 연도는 강한 힌트이되, 역사적 인과가 우선입니다.
 - 단지 같은 시대라는 이유로 무관한 항목을 넣지 않습니다(억지 연결 금지). 없으면 빈 배열.
-- 반드시 select_relations 도구를 호출합니다.`;
+- 반드시 다음과 같은 JSON 형식으로만 응답해야 합니다:
+{
+  "prevFactIds": ["id1", "id2"],
+  "nextFactIds": ["id3"]
+}`;
 
 /** 단일 사건의 이전/이후 관계를 Claude로 산출. 실패·후보없음 시 빈 결과. */
 export async function linkFactRelations(
@@ -85,18 +68,25 @@ export async function linkFactRelations(
     `[대상 사건]\nid:${fact.id} | ${fact.year ?? "?"} | ${fact.title}\n내용: ${fact.body}\n핵심어: ${fact.keywords.join(", ")}\n시대: ${fact.era}\n` +
     `\n[연표 후보]\n${candidateList}\n\n대상 사건의 이전(배경·원인)·이후(결과·영향) 연표 id를 select_relations로 반환하세요.`;
   try {
-    const res = await client().messages.create({
-      model: MODEL,
-      max_tokens: 400,
-      system: REL_SYSTEM,
-      tools: [REL_TOOL],
-      tool_choice: { type: "tool", name: "select_relations" },
-      messages: [{ role: "user", content: userText }],
+    const response = await fetch(OLLAMA_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL,
+        system: REL_SYSTEM,
+        prompt: userText,
+        stream: false,
+        format: "json",
+        options: { temperature: 0.1 }
+      })
     });
-    const block = res.content.find((b) => b.type === "tool_use");
-    const input = block && block.type === "tool_use" ? block.input : {};
-    return sanitizeRelations(input, cands.map((f) => f.id), fact.id);
-  } catch {
+
+    if (!response.ok) throw new Error("Ollama fetch failed");
+    const data = await response.json();
+    const resultJson = JSON.parse(data.response.trim());
+    return sanitizeRelations(resultJson, cands.map((f) => f.id), fact.id);
+  } catch (err: any) {
+    console.error("linkFactRelations Error:", err.message);
     return { prevFactIds: [], nextFactIds: [] };
   }
 }

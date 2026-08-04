@@ -9,6 +9,7 @@ export interface GraphNode {
   category?: string | null;
   importance?: number;
   questionCount?: number;
+  questionIds?: string[];
   color?: string;
 }
 

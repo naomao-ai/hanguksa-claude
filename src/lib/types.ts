@@ -42,6 +42,8 @@ export interface FactDTO {
   title: string;
   kind: string;
   body: string;
+  /** 한국사적 평가 및 의의 (1~2문장) */
+  significance?: string | null;
   relatedTo: string[];
   /** 소시대/세부 시기 (예: "삼국-전성기") */
   period: string | null;

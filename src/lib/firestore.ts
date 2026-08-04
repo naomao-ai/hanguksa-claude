@@ -49,6 +49,7 @@ function docToQuestion(id: string, d: FirebaseFirestore.DocumentData): QuestionD
     source: d.source ?? "MANUAL",
     corePoint: d.corePoint ?? null,
     factIds: Array.isArray(d.factIds) ? d.factIds : [],
+    wikiMeta: d.wikiMeta ?? null,
     choices: [...choices]
       .sort((a, b) => a.order - b.order)
       .map((c, i) => ({ id: String(i), order: c.order, text: c.text, imageUrl: c.imageUrl ?? null })),
@@ -79,6 +80,7 @@ function sortQuestions(rows: QuestionDTO[]): QuestionDTO[] {
 
 /** 전체 문항 조회 (집계/회차용) */
 export async function getAllQuestions(): Promise<QuestionDTO[]> {
+  console.log("DEBUG: Running getAllQuestions");
   const snap = await db.collection(COL.questions).get();
   return snap.docs.map((d) => docToQuestion(d.id, d.data()));
 }
@@ -337,7 +339,7 @@ export async function setQuestionFactIds(id: string, factIds: string[]): Promise
 
 /** 문항의 wikiMeta 갱신 (AI 보강용) */
 export async function setQuestionWikiMeta(id: string, wikiMeta: QuestionDTO["wikiMeta"]): Promise<void> {
-  await db.collection(COL.questions).doc(id).update({ wikiMeta });
+  await db.collection(COL.questions).doc(id).set({ wikiMeta }, { merge: true });
 }
 
 /** 연결 대상 문항 조회. missing=factIds 비어있는 것만, all=전체 */
@@ -448,12 +450,27 @@ export async function getFacts(era?: string | null, kind?: string | null): Promi
   return rows.sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
 }
 
-/** 튜터 RAG: 키워드(2자+)로 title 포함 검색, 최대 5건 */
+/** 튜터 RAG: 키워드(2자+)로 title, body, keywords 통합 검색, 점수순 최대 5건 */
 export async function searchFacts(terms: string[], take = 5): Promise<FactDTO[]> {
   if (terms.length === 0) return [];
   const snap = await db.collection(COL.facts).get();
   const rows = snap.docs.map((d) => docToFact(d.id, d.data()));
-  return rows.filter((f) => terms.some((t) => f.title.includes(t))).slice(0, take);
+  
+  return rows
+    .map((f) => {
+      let score = 0;
+      for (const t of terms) {
+        const lowerT = t.toLowerCase();
+        if (f.title.toLowerCase().includes(lowerT)) score += 3; // 제목 매칭 시 높은 가중치
+        else if (f.keywords && f.keywords.some(k => k.toLowerCase().includes(lowerT))) score += 2; // 키워드 매칭
+        else if (f.body.toLowerCase().includes(lowerT)) score += 1; // 본문 매칭
+      }
+      return { fact: f, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, take)
+    .map((item) => item.fact);
 }
 
 /** 연표 항목의 이전/이후 방향 관계 갱신 (AI 관계망 생성용) */

@@ -15,6 +15,9 @@
     "seed:timeline": "node --env-file=.env.local --experimental-strip-types scripts/seed-timeline.ts",
     "render:exam": "node --experimental-strip-types scripts/render-exam-pdf.ts",
     "import:exam": "node --env-file=.env.local --experimental-strip-types scripts/import-exam.ts",
+    "import:facts": "node --env-file=.env.local --experimental-strip-types scripts/import-facts.ts",
+    "import:wiki-facts": "node --env-file=.env.local --experimental-strip-types scripts/import-wiki-to-facts.ts",
+    "enrich:facts": "node --env-file=.env.local --experimental-strip-types scripts/enrich-facts.ts",
     "sim": "node scripts/simulate.mjs 30 functional",
     "sim:perf": "node scripts/simulate.mjs 30 perf"
   },
@@ -22,6 +25,7 @@
     "@anthropic-ai/sdk": "^0.104.1",
     "@prisma/client": "^6.19.3",
     "clsx": "^2.1.1",
+    "d3": "^7.9.0",
     "d3-force": "^3.0.0",
     "d3-selection": "^3.0.0",
     "d3-zoom": "^3.0.0",
@@ -39,6 +43,7 @@
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.0",
     "@tailwindcss/postcss": "^4",
+    "@types/d3": "^7.4.3",
     "@types/d3-force": "^3.0.10",
     "@types/d3-selection": "^3.0.11",
     "@types/d3-zoom": "^3.0.8",
