@@ -4,7 +4,7 @@ import { db } from "@/lib/firebase-admin";
 export async function GET() {
   try {
     const snap = await db.collection("facts").get();
-    const facts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const facts: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     const titleMap = new Map<string, any[]>();
     for (const f of facts) {

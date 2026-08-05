@@ -38,6 +38,8 @@
     "scripts/render-exam-pdf.ts",
     "scripts/import-exam.ts",
     "scripts/lib/node-image.ts",
+    "scripts/do-import-67.ts",
+    "scripts/import-wiki-to-facts.ts",
     "prisma/seed.ts",
     "prisma/seed-78.ts",
     "prisma/seed-recent.ts"

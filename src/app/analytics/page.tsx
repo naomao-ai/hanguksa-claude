@@ -19,6 +19,9 @@ interface Trends {
   byLevel: { SIMHWA: number; GIBON: number };
   byRound: { round: number; total: number; eras: Record<string, number> }[];
   avgDifficulty: number | null;
+  eraPositions?: Record<string, { min: number; max: number; avg: number }>;
+  predictedNextRound?: { eras: Record<string, number> };
+  topTopics?: Record<string, { topic: string; count: number }[]>;
 }
 
 export default function AnalyticsPage() {
