@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { fetchFacts, fetchGraphData, type GraphFilter } from "@/lib/api";
+import { fetchFacts, fetchGraphData } from "@/lib/api";
 import { ERAS, FACT_CATEGORIES } from "@/lib/domain";
 import { eraLabel } from "@/lib/domain";
 import { buildFactMap } from "@/lib/network";
@@ -108,8 +108,8 @@ function NetworkPage() {
   // Quick Access 필터 모드
   const [viewMode, setViewMode] = useState<"all" | "top" | "causal" | "weak">("all");
 
-  // Onboarding Modal 상태
-  const [showOnboarding, setShowOnboarding] = useState(true);
+  // Onboarding Modal 상태 — 처음 방문한 사용자에게만 1회 표시
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<1 | 2>(1);
   const [onboardingType, setOnboardingType] = useState<"era" | "category" | "person" | null>(null);
 
@@ -144,6 +144,8 @@ function NetworkPage() {
   const viewModeRef = useRef<string>("all");
   const causalChainIdsRef = useRef<Set<string>>(new Set());
   const wrongFactIdsRef = useRef<Set<string>>(new Set());
+  // 상단 필터(시대/분류/검색/개념레이어)로 표시 가능한 노드 집합 (draw에서 하드 필터)
+  const filterVisibleRef = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     // 클라이언트 마운트 시 로컬 스토어에서 오답 이력 로드
@@ -154,6 +156,18 @@ function NetworkPage() {
     // 일단 wqIds 셋만 들고 있다가 graphData가 세팅될 때 계산하도록 합니다.
     window.sessionStorage.setItem("wrongQIds", JSON.stringify([...wqIds]));
   }, []);
+
+  // 온보딩은 첫 방문에만 노출 (이후 방문은 건너뜀)
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("network_onboarded")) setShowOnboarding(true);
+    } catch { setShowOnboarding(true); }
+  }, []);
+
+  function closeOnboarding() {
+    setShowOnboarding(false);
+    try { localStorage.setItem("network_onboarded", "1"); } catch {}
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 500);
@@ -173,53 +187,73 @@ function NetworkPage() {
   causalChainIdsRef.current = causalChainIds;
   wrongFactIdsRef.current = wrongFactIds;
 
-  // 표시용 그래프 — showConcepts=false면 학습 개념 노드/엣지를 제거
-  const displayData = useMemo<GraphData | null>(() => {
+  // 시대/분류/검색/개념레이어 → 표시 가능 노드 집합.
+  // 시뮬레이션은 전체 그래프로 1회만 돌리고, 이 집합으로 draw에서만 걸러 낸다
+  // (필터를 바꿔도 레이아웃이 튀지 않고 위치가 유지된다).
+  const normalizedQuery = debouncedQuery.trim().toLowerCase();
+  const filterVisible = useMemo<Set<string> | null>(() => {
     if (!graphData) return null;
-    if (showConcepts) return graphData;
-    const nodes = graphData.nodes.filter(
-      (n: any) => n.era !== "concept" && n.id !== "era-concept"
-    );
-    const idset = new Set(nodes.map((n) => n.id));
-    const edges = graphData.edges.filter((e: any) => {
-      const s = typeof e.source === "object" ? e.source.id : e.source;
-      const t = typeof e.target === "object" ? e.target.id : e.target;
-      return idset.has(s) && idset.has(t);
-    });
-    return { nodes, edges };
-  }, [graphData, showConcepts]);
+    const noFilter = !era && !category && !normalizedQuery && showConcepts;
+    if (noFilter) return null;
+    const set = new Set<string>();
+    const activeEras = new Set<string>();
+    for (const n of graphData.nodes as any[]) {
+      if (n.type !== "fact") continue;
+      // 개념 레이어 토글은 kind 기준 — conceptEra로 실제 시대에 배치돼도 숨김 유지
+      if (!showConcepts && n.kind === "concept") continue;
+      if (era && n.era !== era) continue;
+      if (category && n.category !== category) continue;
+      if (normalizedQuery) {
+        const inTitle = (n.label || "").toLowerCase().includes(normalizedQuery);
+        const inKw = (n.keywords || []).some((k: string) => k.toLowerCase().includes(normalizedQuery));
+        if (!inTitle && !inKw) continue;
+      }
+      set.add(n.id);
+      activeEras.add(n.era);
+    }
+    for (const n of graphData.nodes as any[]) {
+      if (n.type !== "era") continue;
+      const key = String(n.id).replace(/^era-/, "");
+      if (!showConcepts && key === "concept") continue;
+      if (era && key !== era) continue;
+      if (!era && !activeEras.has(key)) continue;
+      set.add(n.id);
+    }
+    return set;
+  }, [graphData, showConcepts, era, category, normalizedQuery]);
+  filterVisibleRef.current = filterVisible;
 
   const adjacencyMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    if (!displayData) return map;
-    for (const edge of displayData.edges) {
-      const src = typeof edge.source === "object" ? edge.source.id : edge.source;
-      const tgt = typeof edge.target === "object" ? edge.target.id : edge.target;
+    if (!graphData) return map;
+    for (const edge of graphData.edges) {
+      const src = typeof edge.source === "object" ? (edge.source as any).id : edge.source;
+      const tgt = typeof edge.target === "object" ? (edge.target as any).id : edge.target;
       if (!map.has(src)) map.set(src, new Set());
       if (!map.has(tgt)) map.set(tgt, new Set());
       map.get(src)!.add(tgt);
       map.get(tgt)!.add(src);
     }
     return map;
-  }, [displayData]);
+  }, [graphData]);
 
   const degreeMap = useMemo(() => {
     const map = new Map<string, number>();
-    if (!displayData) return map;
-    for (const edge of displayData.edges) {
-      const src = typeof edge.source === "object" ? edge.source.id : edge.source;
-      const tgt = typeof edge.target === "object" ? edge.target.id : edge.target;
+    if (!graphData) return map;
+    for (const edge of graphData.edges) {
+      const src = typeof edge.source === "object" ? (edge.source as any).id : edge.source;
+      const tgt = typeof edge.target === "object" ? (edge.target as any).id : edge.target;
       map.set(src, (map.get(src) || 0) + 1);
       map.set(tgt, (map.get(tgt) || 0) + 1);
     }
     return map;
-  }, [displayData]);
+  }, [graphData]);
 
+  // 그래프는 최초 1회만 로드 — 이후 시대/분류/검색 필터는 서버 재조회 없이
+  // 클라이언트에서 처리한다(재레이아웃·DB read 비용 제거).
   useEffect(() => {
     setLoading(true);
-    const filter: GraphFilter = { era, category, q: debouncedQuery };
-    fetchGraphData(filter).then((data) => {
-      // nodesRef/edgesRef는 displayData 기준으로 시뮬레이션 effect에서 세팅됨
+    fetchGraphData({}).then((data) => {
       setGraphData(data);
       setLoading(false);
 
@@ -230,8 +264,8 @@ function NetworkPage() {
           const wqIds = new Set<string>(JSON.parse(stored));
           const wFacts = new Set<string>();
           for (const n of data.nodes) {
-            if (n.type === "fact" && n.questionIds) {
-              for (const qid of n.questionIds) {
+            if (n.type === "fact" && (n as any).questionIds) {
+              for (const qid of (n as any).questionIds) {
                 if (wqIds.has(qid)) {
                   wFacts.add(n.id);
                   break;
@@ -243,7 +277,7 @@ function NetworkPage() {
         }
       } catch (e) {}
     });
-  }, [era, category, debouncedQuery]);
+  }, []);
 
   // 인과 체인 모드 활성화
   function activateCausalMode(factId: string) {
@@ -254,22 +288,23 @@ function NetworkPage() {
 
   /* ─────── D3 Simulation & Rendering ─────── */
   useEffect(() => {
-    if (!displayData || !canvasRef.current) return;
+    if (!graphData || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+    let width = canvas.clientWidth;
+    let height = canvas.clientHeight;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
 
-    // 표시 데이터로부터 시뮬레이션용 노드/엣지 사본 생성 (d3가 좌표를 변형)
-    nodesRef.current = displayData.nodes.map((d) => ({ ...d }));
-    edgesRef.current = displayData.edges.map((d) => ({ ...d }));
+    // 전체 그래프로부터 시뮬레이션용 노드/엣지 사본 생성 (d3가 좌표를 변형).
+    // 필터링은 draw 단계에서만 하므로 위치가 유지된다.
+    nodesRef.current = graphData.nodes.map((d) => ({ ...d }));
+    edgesRef.current = graphData.edges.map((d) => ({ ...d }));
     const nodes = nodesRef.current;
     const edges = edgesRef.current;
 
@@ -389,7 +424,19 @@ function NetworkPage() {
           }
         }
       }
-      visibleSetRef.current = visibleSet;
+      // 상단 필터(시대/분류/검색/개념)를 격리 집합과 결합 (격리 ∩ 필터).
+      // 둘 다 없으면 null(전체 표시).
+      const filterSet = filterVisibleRef.current;
+      let hardVisible: Set<string> | null = filterSet;
+      if (visibleSet) {
+        if (!filterSet) {
+          hardVisible = visibleSet;
+        } else {
+          hardVisible = new Set<string>();
+          for (const id of visibleSet) if (filterSet.has(id)) hardVisible.add(id);
+        }
+      }
+      visibleSetRef.current = hardVisible;
 
       // ── 엣지 렌더링 ──
       if (k >= 0.3) {
@@ -402,6 +449,8 @@ function NetworkPage() {
         };
 
         for (const link of edges) {
+          // 필터/격리 집합 밖으로 나간 엣지는 아예 그리지 않는다
+          if (hardVisible && (!hardVisible.has(link.source.id) || !hardVisible.has(link.target.id))) continue;
           if (!inViewport(link.source.x, link.source.y) && !inViewport(link.target.x, link.target.y)) continue;
           const group = edgeGroups[link.type];
           if (group) group.links.push(link);
@@ -504,8 +553,8 @@ function NetworkPage() {
 
       // ── 노드 렌더링 ──
       for (const node of nodes) {
-        // 격리 모드: 집합 밖 노드는 완전히 숨김
-        if (visibleSet && !visibleSet.has(node.id)) continue;
+        // 격리/필터 모드: 집합 밖 노드는 완전히 숨김
+        if (hardVisible && !hardVisible.has(node.id)) continue;
         if (!inViewport(node.x, node.y)) continue;
         const isHovered = node.id === hoveredNodeIdRef.current;
         const isSelected = node.id === selectedFactId;
@@ -607,9 +656,14 @@ function NetworkPage() {
     drawRef.current = draw;
 
     simulation.on("tick", () => {
-      rebuildQuadtree();
+      // 노드가 움직이는 동안(alpha 높음)에만 quadtree 재구축.
+      // 안정화되면 매 프레임 재구축은 낭비이므로 정지 직전 1회만 갱신.
+      if (simulation.alpha() > 0.05) rebuildQuadtree();
       draw();
-      if (simulation.alpha() < 0.01) simulation.stop();
+      if (simulation.alpha() < 0.01) {
+        rebuildQuadtree();
+        simulation.stop();
+      }
     });
 
     const zoom = d3.zoom<HTMLCanvasElement, unknown>()
@@ -723,20 +777,45 @@ function NetworkPage() {
         }
       });
 
+    // 창/패널 크기 변화 대응 — 좌표계·중심력 재설정 후 살짝 재가열 (디바운스)
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    function handleResize() {
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (!w || !h || (w === width && h === height)) return;
+      width = w;
+      height = h;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx!.scale(dpr, dpr); // canvas.width 재설정으로 초기화된 변환 복원
+      const centerForce = simulation.force("center") as d3.ForceCenter<any> | undefined;
+      if (centerForce) centerForce.x(width / 2).y(height / 2);
+      const yForce = simulation.force("y") as d3.ForceY<any> | undefined;
+      if (yForce) yForce.y(height / 2);
+      simulation.alpha(0.2).restart();
+      draw();
+    }
+    function onResize() {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(handleResize, 150);
+    }
+    window.addEventListener("resize", onResize);
+
     return () => {
       simulation.stop();
       cancelAnimationFrame(rafIdRef.current);
+      window.removeEventListener("resize", onResize);
+      if (resizeTimer) clearTimeout(resizeTimer);
       drawRef.current = null;
       fitRef.current = null;
     };
-    // 선택 상태(selectedFactId/eraFocus/viewMode/causalChainIds)는 refs로 읽으므로
-    // deps에서 제외 → 클릭 시 시뮬레이션이 재생성되지 않고 줌이 유지됨
-  }, [displayData, adjacencyMap, degreeMap, router]);
+    // 선택 상태(selectedFactId/eraFocus/viewMode/causalChainIds/filter)는 refs로 읽으므로
+    // deps에서 제외 → 클릭·필터 변경 시 시뮬레이션이 재생성되지 않고 줌이 유지됨
+  }, [graphData, adjacencyMap, degreeMap, router]);
 
-  // 선택/모드 변경 시 리레이아웃 없이 다시 그리기
+  // 선택/모드/필터 변경 시 리레이아웃 없이 다시 그리기
   useEffect(() => {
     drawRef.current?.();
-  }, [selectedFactId, eraFocus, viewMode, causalChainIds, wrongFactIds]);
+  }, [selectedFactId, eraFocus, viewMode, causalChainIds, wrongFactIds, filterVisible]);
 
   // 사건/시대 선택 시 해당 관계망을 화면 가운데 꽉 차게 줌-핏
   useEffect(() => {
@@ -751,13 +830,16 @@ function NetworkPage() {
       ids = new Set<string>([selectedFactId]);
       const nb = adjacencyMap.get(selectedFactId);
       if (nb) for (const n of nb) ids.add(n);
+    } else if (filterVisible && filterVisible.size > 0) {
+      // 상단 필터(시대/분류/검색)만 걸린 상태 → 결과 집합이 화면에 꽉 차게
+      ids = filterVisible;
     }
     if (ids && ids.size > 0) {
       // 시뮬레이션이 위치를 잡을 시간을 살짝 준 뒤 핏
       const timer = setTimeout(() => fitRef.current?.(ids!), 120);
       return () => clearTimeout(timer);
     }
-  }, [selectedFactId, eraFocus, adjacencyMap]);
+  }, [selectedFactId, eraFocus, adjacencyMap, filterVisible]);
 
   // ── Phase A: Tooltip ──
   function updateTooltip(node: any, mouseX: number, mouseY: number) {
@@ -814,7 +896,7 @@ function NetworkPage() {
       <div className="relative flex-1 bg-[#0f172a] flex flex-col">
         {/* Toolbar */}
         <div className="absolute left-4 right-4 top-4 z-10 flex flex-wrap items-center gap-3">
-          <div className="relative w-56 shadow-sm">
+          <div className="relative w-full sm:w-56 shadow-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
@@ -829,10 +911,10 @@ function NetworkPage() {
               </button>
             )}
           </div>
-          <div className="flex gap-1 bg-slate-800/80 p-1 rounded-full border border-slate-700 shadow-sm backdrop-blur-sm">
-            <button onClick={() => setEra("")} className={`px-3 py-1 rounded-full text-xs font-medium ${era === "" ? "bg-slate-600 text-white" : "text-slate-400 hover:text-white"}`}>전체</button>
+          <div className="flex gap-1 bg-slate-800/80 p-1 rounded-full border border-slate-700 shadow-sm backdrop-blur-sm max-w-full overflow-x-auto flex-nowrap">
+            <button onClick={() => setEra("")} className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${era === "" ? "bg-slate-600 text-white" : "text-slate-400 hover:text-white"}`}>전체</button>
             {ERAS.map(e => (
-              <button key={e.key} onClick={() => setEra(era === e.key ? "" : e.key)} className="px-3 py-1 rounded-full text-xs font-medium transition-colors" style={era === e.key ? { backgroundColor: e.color, color: "#fff" } : { color: e.color }}>
+              <button key={e.key} onClick={() => setEra(era === e.key ? "" : e.key)} className="px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap" style={era === e.key ? { backgroundColor: e.color, color: "#fff" } : { color: e.color }}>
                 {e.label}
               </button>
             ))}
@@ -912,6 +994,7 @@ function NetworkPage() {
             빈출 TOP
           </button>
           <button
+            disabled={!selectedFactId && viewMode !== "causal"}
             onClick={() => {
               if (viewMode === "causal") {
                 setViewMode("all");
@@ -920,8 +1003,8 @@ function NetworkPage() {
                 activateCausalMode(selectedFactId);
               }
             }}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${viewMode === "causal" ? "bg-indigo-500/90 text-white shadow-lg shadow-indigo-500/30" : "bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 border border-slate-700"} backdrop-blur-sm`}
-            title={selectedFactId ? "선택한 사건의 인과 체인 추적" : "사건을 먼저 클릭하세요"}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${viewMode === "causal" ? "bg-indigo-500/90 text-white shadow-lg shadow-indigo-500/30" : "bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 border border-slate-700"} backdrop-blur-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800/80`}
+            title={selectedFactId || viewMode === "causal" ? "선택한 사건의 인과 체인 추적" : "사건을 먼저 클릭하세요"}
           >
             <GitBranch size={14} />
             인과 추적
@@ -932,7 +1015,9 @@ function NetworkPage() {
         <div className="absolute bottom-4 left-4 text-xs text-slate-400 bg-slate-900/80 p-3 rounded-lg shadow-lg border border-slate-700/50 space-y-1.5 backdrop-blur-md">
           <div className="font-semibold text-slate-200 mb-1 border-b border-slate-700 pb-1">Graph View</div>
           <div className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-slate-400" /> 시대</div>
-          <div className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-amber-400" /> 사건</div>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-full" style={{ background: "conic-gradient(from 0deg, #f59e0b, #10b981, #3b82f6, #8b5cf6, #f59e0b)" }} /> 사건 <span className="text-slate-500">(색=시대별)</span>
+          </div>
           {showConcepts && (
             <div className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: "#a78bfa" }} /> 학습 개념</div>
           )}
@@ -968,7 +1053,7 @@ function NetworkPage() {
               {onboardingStep === 2 && onboardingType === "era" && (
                 <div className="grid grid-cols-3 gap-2">
                   {ERAS.map(e => (
-                    <button key={e.key} onClick={() => { setEra(e.key); setShowOnboarding(false); }} className="p-2 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/10 transition text-sm text-foreground">{e.label}</button>
+                    <button key={e.key} onClick={() => { setEra(e.key); closeOnboarding(); }} className="p-2 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/10 transition text-sm text-foreground">{e.label}</button>
                   ))}
                 </div>
               )}
@@ -976,7 +1061,7 @@ function NetworkPage() {
               {onboardingStep === 2 && onboardingType === "category" && (
                 <div className="grid grid-cols-3 gap-2">
                   {FACT_CATEGORIES.map(c => (
-                    <button key={c} onClick={() => { setCategory(c); setShowOnboarding(false); }} className="p-2 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/10 transition text-sm text-foreground">{c}</button>
+                    <button key={c} onClick={() => { setCategory(c); closeOnboarding(); }} className="p-2 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/10 transition text-sm text-foreground">{c}</button>
                   ))}
                 </div>
               )}
@@ -984,7 +1069,7 @@ function NetworkPage() {
               {onboardingStep === 2 && onboardingType === "person" && (
                 <div className="grid grid-cols-3 gap-2">
                   {["고국원왕", "장수왕", "진흥왕", "의자왕", "왕건", "광종", "공민왕", "이성계", "세종", "이순신", "정조", "흥선대원군"].map(p => (
-                    <button key={p} onClick={() => { setQuery(p); setShowOnboarding(false); }} className="p-2 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/10 transition text-sm text-foreground">{p}</button>
+                    <button key={p} onClick={() => { setQuery(p); closeOnboarding(); }} className="p-2 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/10 transition text-sm text-foreground">{p}</button>
                   ))}
                 </div>
               )}
@@ -993,7 +1078,7 @@ function NetworkPage() {
                 <button onClick={() => setOnboardingStep(1)} className="mt-6 text-sm text-muted-foreground hover:text-foreground">← 뒤로 가기</button>
               )}
               
-              <button onClick={() => setShowOnboarding(false)} className="absolute top-4 right-4 text-muted hover:text-foreground p-1">
+              <button onClick={closeOnboarding} className="absolute top-4 right-4 text-muted hover:text-foreground p-1">
                 <X size={20} />
               </button>
             </div>
@@ -1003,7 +1088,7 @@ function NetworkPage() {
 
       {/* Slide-over Wiki Panel */}
       {selectedFact && (
-        <div className="w-full md:w-[400px] lg:w-[480px] h-full flex-shrink-0 bg-white transition-all duration-300 border-l shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.1)] z-30 relative">
+        <div className="fixed inset-x-0 bottom-0 z-40 h-[72vh] w-full rounded-t-2xl border-t bg-white shadow-2xl transition-all duration-300 md:static md:h-full md:w-[400px] lg:w-[480px] md:rounded-none md:border-l md:border-t-0 md:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.1)] flex-shrink-0">
           <WikiPanel
             fact={selectedFact}
             factMap={factMap}

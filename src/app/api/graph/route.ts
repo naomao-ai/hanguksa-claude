@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       importance: number;
       keywords: string[];
       nextFactIds: string[];
+      conceptEra: string | null;
     }
 
     let facts: FactRow[] = factSnap.docs.map((d) => {
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
         importance: typeof data.importance === "number" ? data.importance : 1,
         keywords: Array.isArray(data.keywords) ? data.keywords.filter(Boolean) : [],
         nextFactIds: Array.isArray(data.nextFactIds) ? data.nextFactIds : [],
+        conceptEra: typeof data.conceptEra === "string" ? data.conceptEra : null,
       };
     });
 
@@ -106,8 +108,16 @@ export async function GET(req: NextRequest) {
     // 시대 미상(era="unknown")의 학습 개념 노드는 별도 그룹으로 묶는다.
     // 데이터상 era 값은 그대로 두고, 표시(displayEra)만 "concept"으로 정규화.
     const CONCEPT_ERA = "concept"; // 가상 시대 키
+    const ERA_KEY_SET = new Set(ERAS.map((e) => e.key));
     const isConceptFact = (f: FactRow) => f.kind === "concept" || f.era === "unknown";
-    const displayEra = (f: FactRow) => (isConceptFact(f) ? CONCEPT_ERA : f.era);
+    // 개념 노드는 conceptEra가 있으면 그 실제 시대 군집에 배치한다(색·토글은
+    // 클라이언트가 kind="concept"으로 유지). conceptEra가 없으면 "학습 개념" 허브로.
+    const displayEra = (f: FactRow) =>
+      !isConceptFact(f)
+        ? f.era
+        : f.conceptEra && ERA_KEY_SET.has(f.conceptEra)
+          ? f.conceptEra
+          : CONCEPT_ERA;
 
     // 1. Fact 노드 생성 + factIdSet 구축
     for (const f of facts) {
