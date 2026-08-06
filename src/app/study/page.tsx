@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ERAS, QUESTION_TYPES, LEVELS, eraLabel } from "@/lib/domain";
-import { fetchQuestions, fetchRounds, fetchFacts } from "@/lib/api";
+import { fetchQuestions, fetchQuestionsByIds, fetchRounds, fetchFacts } from "@/lib/api";
 import { useStore } from "@/lib/useStore";
 import { weakestEra } from "@/lib/local-store";
 import type { QuestionDTO } from "@/lib/types";
@@ -24,11 +24,22 @@ function StudyPage() {
   const params = useSearchParams();
   const factId = params.get("factId");
   const warmup = params.get("warmup") === "1";
+  const singleId = params.get("q");
   const [factTitle, setFactTitle] = useState<string>("");
   const { store, ready } = useStore();
   const [warmupEra, setWarmupEra] = useState<string | null>(null);
 
   useEffect(() => { fetchRounds().then(setRounds); }, []);
+
+  // 단일 문항 진입(q=id) — "비슷한 유형 다시 풀기" 등에서 특정 문항 하나만 바로 풀기
+  useEffect(() => {
+    if (!singleId) return;
+    setLoading(true);
+    fetchQuestionsByIds([singleId]).then((qs) => {
+      setQuestions(qs);
+      setLoading(false);
+    });
+  }, [singleId]);
 
   // 연표 상세에서 진입(factId) 시 연결된 문제로 바로 학습 시작
   useEffect(() => {
@@ -97,6 +108,11 @@ function StudyPage() {
             </p>
             <a href="/" className="text-sm text-muted hover:text-foreground">← 홈으로</a>
           </div>
+        ) : singleId ? (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted">📌 <b className="text-foreground">비슷한 유형 문제</b> 풀기</p>
+            <a href="/study" className="text-sm text-muted hover:text-foreground">← 문제풀이로</a>
+          </div>
         ) : (
           <button className="text-sm text-muted hover:text-foreground" onClick={() => setQuestions(null)}>
             ← 조건 다시 설정
@@ -111,7 +127,7 @@ function StudyPage() {
     );
   }
 
-  if ((factId || warmup) && loading) {
+  if ((factId || warmup || singleId) && loading) {
     return <div className="flex justify-center p-10"><Loader2 className="animate-spin text-muted" /></div>;
   }
 
