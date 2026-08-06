@@ -10,6 +10,7 @@ import type { QuestionDTO } from "@/lib/types";
 import { Bookmark, BookmarkCheck, CheckCircle2, XCircle, MessageCircleQuestion, ArrowRight, RotateCcw, Image as ImageIcon } from "lucide-react";
 import ScrapBottomSheet from "@/components/ScrapBottomSheet";
 import CorePoint from "@/components/CorePoint";
+import { parsePassage } from "@/lib/passage";
 
 export default function StudyRunner({
   questions,
@@ -244,22 +245,32 @@ export default function StudyRunner({
           {/* 발문 */}
           <p className="text-lg font-semibold leading-relaxed">{q.stem}</p>
 
-          {/* 자료/사료 */}
-          {q.passage && !q.imageUrl && (
-            <blockquote className="rounded-lg border-l-4 border-gold bg-surface-2 p-3 text-sm leading-relaxed">
-              {q.passage}
-            </blockquote>
-          )}
+          {/* 자료/사료 — 그림 유무와 무관하게 항상 표시(밑줄 지문·사료 등 풀이 필수 본문).
+              [역사 신문]·[답사 보고서] 등 자료 형식 라벨은 제목 badge로 분리한다. */}
+          {q.passage && (() => {
+            const { label, body } = parsePassage(q.passage);
+            return (
+              <div className="overflow-hidden rounded-lg border-l-4 border-gold bg-surface-2">
+                {label && (
+                  <div className="bg-gold/15 px-3 py-1.5 text-xs font-bold text-gold">{label}</div>
+                )}
+                <blockquote className="p-3 text-sm leading-relaxed whitespace-pre-wrap break-keep">
+                  {body}
+                </blockquote>
+              </div>
+            );
+          })()}
           {q.imageUrl && (
             <div className="relative group rounded-lg border overflow-hidden bg-white">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src={q.imageUrl} 
-                alt="자료" 
-                className={cn("max-h-72 w-full object-contain", (q.imageDescription || q.passage) && "cursor-pointer")} 
-                onClick={() => (q.imageDescription || q.passage) && setShowImgDesc(p => !p)} 
+              <img
+                src={q.imageUrl}
+                alt="자료"
+                className={cn("max-h-72 w-full object-contain", q.imageDescription && "cursor-pointer")}
+                onClick={() => q.imageDescription && setShowImgDesc(p => !p)}
               />
-              {(q.imageDescription || q.passage) && (
+              {/* 삽화 설명(imageDescription)만 클릭 토글 — 본문 지문은 위에 이미 노출됨 */}
+              {q.imageDescription && (
                 <button
                   onClick={() => setShowImgDesc(p => !p)}
                   className="absolute bottom-2 right-2 bg-black/60 text-white p-1.5 rounded-md hover:bg-black/80 transition-colors flex items-center gap-1.5 text-xs shadow-md"
@@ -268,19 +279,14 @@ export default function StudyRunner({
                   <ImageIcon size={14} /> 설명 보기
                 </button>
               )}
-              {(q.imageDescription || q.passage) && showImgDesc && (
-                <div 
+              {q.imageDescription && showImgDesc && (
+                <div
                   className="absolute inset-0 bg-black/85 text-white/95 p-5 overflow-y-auto text-sm leading-relaxed flex items-center justify-center cursor-pointer animate-in fade-in zoom-in-95 duration-200"
                   onClick={() => setShowImgDesc(false)}
                 >
                   <div className="max-w-sm text-center flex flex-col items-center gap-3">
                     <div className="font-bold text-accent border-b border-white/20 pb-2 inline-block">[자료 설명]</div>
-                    {q.passage && (
-                      <div className="bg-white/10 rounded p-3 text-left w-full">
-                        <p className="break-keep whitespace-pre-wrap">{q.passage}</p>
-                      </div>
-                    )}
-                    {q.imageDescription && <p className="break-keep">{q.imageDescription}</p>}
+                    <p className="break-keep">{q.imageDescription}</p>
                   </div>
                 </div>
               )}
