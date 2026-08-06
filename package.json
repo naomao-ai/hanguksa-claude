@@ -8,10 +8,6 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "seed": "node --experimental-strip-types prisma/seed.ts",
-    "seed:recent": "node --experimental-strip-types prisma/seed-recent.ts",
-    "db:push": "prisma db push",
-    "migrate:firebase": "node --env-file=.env.local --experimental-strip-types scripts/migrate-to-firebase.ts",
     "seed:timeline": "node --env-file=.env.local --experimental-strip-types scripts/seed-timeline.ts",
     "render:exam": "node --experimental-strip-types scripts/render-exam-pdf.ts",
     "import:exam": "node --env-file=.env.local --experimental-strip-types scripts/import-exam.ts",
@@ -23,7 +19,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
-    "@prisma/client": "^6.19.3",
     "clsx": "^2.1.1",
     "d3": "^7.9.0",
     "d3-force": "^3.0.0",
@@ -52,7 +47,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
-    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.9"
