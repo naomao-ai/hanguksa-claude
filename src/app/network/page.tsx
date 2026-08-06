@@ -308,6 +308,49 @@ function NetworkPage() {
     const nodes = nodesRef.current;
     const edges = edgesRef.current;
 
+    // ── 시대별 가로 밴드 배치 ──
+    // 밴드 폭을 노드 수에 비례(√)시켜, 조선처럼 사건이 많은 시대는 넓게 펼쳐 밀도를 낮춘다.
+    // 밴드 안에서는 연도순으로 가로 배치해 "시대 = 좌→우 연표" 구조를 만든다.
+    const eraOrder = ERAS.map((e) => e.key).concat("concept");
+    const eraCount = new Map<string, number>();
+    const eraYMin = new Map<string, number>();
+    const eraYMax = new Map<string, number>();
+    for (const n of nodes as any[]) {
+      const e = n.era;
+      if (!e) continue;
+      eraCount.set(e, (eraCount.get(e) || 0) + 1);
+      if (typeof n.year === "number") {
+        eraYMin.set(e, Math.min(eraYMin.get(e) ?? n.year, n.year));
+        eraYMax.set(e, Math.max(eraYMax.get(e) ?? n.year, n.year));
+      }
+    }
+    const activeEras = eraOrder.filter((k) => eraCount.has(k));
+    const bandWeight = (k: string) => Math.sqrt(eraCount.get(k) || 1);
+    const totalWeight = activeEras.reduce((s, k) => s + bandWeight(k), 0) || 1;
+    const usableW = Math.max(width * 0.92, 300);
+    const bandStart = new Map<string, number>();
+    const bandW = new Map<string, number>();
+    let cursorX = (width - usableW) / 2;
+    for (const k of activeEras) {
+      const w = (usableW * bandWeight(k)) / totalWeight;
+      bandStart.set(k, cursorX);
+      bandW.set(k, w);
+      cursorX += w;
+    }
+    const targetX = (d: any): number => {
+      const e = d.era as string | undefined;
+      const bs = e ? bandStart.get(e) : undefined;
+      if (bs === undefined) return width / 2;
+      const bw = bandW.get(e!)!;
+      const ymin = eraYMin.get(e!);
+      const ymax = eraYMax.get(e!);
+      if (typeof d.year === "number" && ymin !== undefined && ymax !== undefined && ymax > ymin) {
+        // 밴드 좌우 10% 여백을 두고 연도순 위치
+        return bs + bw * 0.1 + ((d.year - ymin) / (ymax - ymin)) * bw * 0.8;
+      }
+      return bs + bw / 2; // 연도 없는 노드는 밴드 중앙
+    };
+
     if (simulationRef.current) simulationRef.current.stop();
 
     const simulation = d3.forceSimulation(nodes)
@@ -331,11 +374,7 @@ function NetworkPage() {
       .force("collide", d3.forceCollide()
         .radius((d: any) => getRadius(d, degreeMap) + 6)
         .iterations(1))
-      .force("x", d3.forceX().strength(0.04).x((d: any) => {
-        if (!d.era) return width / 2;
-        const eraIdx = ERAS.findIndex(e => e.key === d.era);
-        return width / 2 + (eraIdx - ERAS.length / 2) * 120;
-      }))
+      .force("x", d3.forceX().strength(0.07).x(targetX))
       .force("y", d3.forceY().strength(0.04).y(height / 2));
 
     simulationRef.current = simulation;
