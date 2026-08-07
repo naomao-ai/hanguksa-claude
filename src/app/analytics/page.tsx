@@ -17,7 +17,7 @@ interface Trends {
   byType: Record<string, number>;
   byDifficulty: Record<string, number>;
   byLevel: { SIMHWA: number; GIBON: number };
-  byRound: { round: number; total: number; eras: Record<string, number> }[];
+  byRound: { round: number; total: number; simhwa: number; gibon: number; eras: Record<string, number> }[];
   avgDifficulty: number | null;
   eraPositions?: Record<string, { min: number; max: number; avg: number }>;
   predictedNextRound?: { eras: Record<string, number> };
@@ -255,12 +255,13 @@ export default function AnalyticsPage() {
           <div className="card p-4">
             <h2 className="mb-3 font-semibold">회차별 수록 문항</h2>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={trends.byRound.map((r) => ({ label: `${r.round}회`, n: r.total }))} margin={{ left: -10 }}>
+              <BarChart data={trends.byRound.map((r) => ({ label: `${r.round}회`, 심화: r.simhwa, 기본: r.gibon }))} margin={{ left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted)" }} interval={0} angle={-30} textAnchor="end" height={50} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted)" }} />
                 <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }} />
-                <Bar dataKey="n" name="문항" fill="var(--gold)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="심화" name="심화" stackId="a" fill="var(--primary)" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="기본" name="기본" stackId="a" fill="var(--gold)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -283,8 +284,8 @@ export default function AnalyticsPage() {
       {/* ── 출제 흐름도 (문항 번호 기준 시대 매핑) ── */}
       {trends && trends.eraPositions && (
         <section className="card p-4">
-          <h2 className="mb-2 flex items-center gap-1.5 font-semibold"><Milestone size={18} className="text-primary" /> 회차별 시대별 문항 분포 흐름</h2>
-          <p className="mb-4 text-xs text-muted">과거 데이터 기반으로 각 시대의 문항이 주로 몇 번대에서 출제되는지 평균 구간을 보여줍니다.</p>
+          <h2 className="mb-2 flex items-center gap-1.5 font-semibold"><Milestone size={18} className="text-primary" /> 시대별 평균 출제 번호대</h2>
+          <p className="mb-4 text-xs text-muted">한국사능력검정시험은 보통 시대순으로 출제됩니다. 각 시대가 주로 1~50번 중 어느 구간에 배치되는지 한눈에 파악하세요.</p>
           <div className="space-y-3">
             {ERAS.filter(e => trends.eraPositions?.[e.key]).map(e => {
               const pos = trends.eraPositions![e.key];
@@ -292,16 +293,18 @@ export default function AnalyticsPage() {
               const widthPct = ((pos.max - pos.min + 1) / 50) * 100;
               return (
                 <div key={e.key} className="flex items-center gap-3 text-sm">
-                  <div className="w-24 font-medium" style={{ color: e.color }}>{e.label}</div>
-                  <div className="flex-1 h-6 bg-surface-2 rounded-full relative overflow-hidden">
+                  <div className="w-20 font-medium" style={{ color: e.color }}>{e.label}</div>
+                  <div className="flex-1 h-6 bg-surface-2 rounded relative flex items-center">
                     <div 
-                      className="absolute top-0 h-full rounded-full flex items-center justify-center text-[10px] text-slate-900 font-bold"
+                      className="absolute top-0 h-full rounded flex items-center justify-center text-[11px] text-white font-bold opacity-80"
                       style={{ left: `${leftPct}%`, width: `${widthPct}%`, backgroundColor: e.color }}
                     >
-                      {Math.round(pos.avg)}번 내외
+                      평균 {Math.round(pos.avg)}번
                     </div>
                   </div>
-                  <div className="w-16 text-right text-xs text-muted">{pos.min} ~ {pos.max}번</div>
+                  <div className="w-24 text-right text-xs font-semibold text-muted">
+                    {pos.min}번 ~ {pos.max}번
+                  </div>
                 </div>
               );
             })}
@@ -313,13 +316,13 @@ export default function AnalyticsPage() {
       {trends && trends.predictedNextRound && (
         <section className="card p-4 border-2 border-accent/20 bg-accent/5">
           <h2 className="mb-2 flex items-center gap-1.5 font-semibold"><Sparkles size={18} className="text-accent" /> 다음 회차 출제 비중 예측</h2>
-          <p className="mb-4 text-xs text-muted">최근 5회차의 가중 이동 평균(WMA)을 적용하여 차기 시험의 시대별 문항 수를 추정합니다.</p>
+          <p className="mb-4 text-xs text-muted">최근 5회차의 출제 빈도(가중 이동 평균)를 분석하여 다음 시험에서 각 시대가 얼마나 출제될지 예측합니다.</p>
           
           <div className="grid gap-6 lg:grid-cols-3">
             {/* 예측 차트 영역 */}
             <div className="lg:col-span-2">
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={[
+                <LineChart data={[
                   ...trends.byRound.slice(-5).map(r => ({ label: `${r.round}회`, ...r.eras, isPrediction: false })),
                   { label: `${trends.byRound[trends.byRound.length-1]?.round + 1}회 (예측)`, ...trends.predictedNextRound.eras, isPrediction: true }
                 ]} margin={{ left: -20, right: 10 }}>
@@ -328,23 +331,25 @@ export default function AnalyticsPage() {
                   <YAxis tick={{ fontSize: 11, fill: "var(--muted)" }} />
                   <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }} />
                   {ERAS.map(e => (
-                    <Bar key={e.key} dataKey={e.key} name={e.label} stackId="a" fill={e.color} />
+                    <Line key={e.key} type="monotone" dataKey={e.key} name={e.label} stroke={e.color} strokeWidth={2} dot={{ r: 3 }} />
                   ))}
-                </BarChart>
+                  <ReferenceLine x={`${trends.byRound[trends.byRound.length-1]?.round + 1}회 (예측)`} stroke="var(--accent)" strokeDasharray="3 3" label={{ position: 'top', value: '예측', fill: 'var(--accent)', fontSize: 11 }} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
             
             {/* 세부 주제 리스트 */}
             <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-              <h3 className="text-sm font-bold border-b border-border pb-2">예상 주요 출제 키워드</h3>
+              <h3 className="text-sm font-bold border-b border-border pb-2">가장 자주 출제된 핵심 키워드</h3>
+              <p className="text-[11px] text-muted-foreground mb-2">과거 기출에서 가장 많이 언급된 시대별 핵심 키워드입니다. 다음 시험에서도 출제될 확률이 높으므로 꼭 숙지하세요.</p>
               {ERAS.filter(e => trends.topTopics?.[e.key] && trends.topTopics[e.key].length > 0).map(e => (
                 <div key={e.key} className="bg-surface p-2 rounded border border-border/50">
-                  <div className="text-xs font-semibold mb-1" style={{ color: e.color }}>{e.label}</div>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="text-xs font-bold mb-1.5" style={{ color: e.color }}>{e.label}</div>
+                  <div className="flex flex-wrap gap-1.5">
                     {trends.topTopics![e.key].map(t => (
-                      <span key={t.topic} className="px-2 py-0.5 bg-surface-2 border border-border rounded text-[10px] text-muted-foreground flex items-center gap-1">
-                        {t.topic} <span className="opacity-50 text-[9px]">{t.count}</span>
-                      </span>
+                      <div key={t.topic} className="px-2 py-1 bg-surface-2 border border-border/80 rounded-md text-[11px] font-medium text-foreground flex items-center gap-1.5 shadow-sm">
+                        {t.topic} <span className="opacity-70 text-[9px] font-normal bg-black/5 dark:bg-white/10 px-1 rounded-sm">{t.count}회</span>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -353,36 +358,7 @@ export default function AnalyticsPage() {
           </div>
         </section>
       )}
-      {/* 회차 커버리지 + 난이도 분포 */}
-      {trends && trends.total > 0 && (
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div className="card p-4">
-            <h2 className="mb-3 font-semibold">회차별 수록 문항</h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={trends.byRound.map((r) => ({ label: `${r.round}회`, n: r.total }))} margin={{ left: -10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted)" }} interval={0} angle={-30} textAnchor="end" height={50} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted)" }} />
-                <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }} />
-                <Bar dataKey="n" name="문항" fill="var(--gold)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="card p-4">
-            <h2 className="mb-1 font-semibold">난이도 분포</h2>
-            <p className="mb-2 text-xs text-muted">평균 난이도 {trends.avgDifficulty ? trends.avgDifficulty.toFixed(1) : "—"} / 5</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={[1, 2, 3, 4, 5].map((d) => ({ label: `${d}`, n: trends.byDifficulty?.[String(d)] ?? 0 }))} margin={{ left: -10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted)" }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted)" }} />
-                <Tooltip contentStyle={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }} />
-                <Bar dataKey="n" name="문항" fill="var(--primary)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
+
     </div>
   );
 }

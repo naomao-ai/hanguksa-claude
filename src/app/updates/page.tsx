@@ -71,15 +71,16 @@ export default function UpdatesPage() {
             <div key={r.id} className="card p-4">
               <div className="mb-1 flex items-center gap-2">
                 <span className="rounded bg-primary/12 px-2 py-0.5 text-xs font-bold text-primary">v{r.version}</span>
-                <h3 className="font-semibold">{r.title}</h3>
+                <h3 className="font-semibold">
+                  {r.examRound 
+                    ? `${r.examRound}회 ${levelText(r.examLevel)} ${r.addedCount}문항 업로드`
+                    : (r.title.includes("?") ? "문제은행 업데이트" : r.title)}
+                </h3>
               </div>
               <p className="flex items-center gap-1.5 text-xs text-muted">
                 <CalendarClock size={13} /> {fmt(r.publishedAt)}
-                {r.examRound ? ` · ${r.examRound}회(${levelText(r.examLevel)})` : ""}
-                {r.addedCount ? ` · +${r.addedCount}문항` : ""}
                 {` · 누적 ${r.questionCount}문항`}
               </p>
-              {r.notes && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{r.notes}</p>}
             </div>
           ))
         )}
