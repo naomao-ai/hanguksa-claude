@@ -11,7 +11,10 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#0f6e64",
     lang: "ko",
     icons: [
-      // 앱 아이콘은 추후 추가 (설치형 PWA 기본 동작에는 필수 아님)
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }
