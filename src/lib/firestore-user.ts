@@ -1,6 +1,7 @@
 import { db } from "./firebase-client";
 import { collection, doc, setDoc, getDoc, getDocs, writeBatch, query, orderBy, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { loadStore, saveStore, type Store } from "./local-store";
+import { mergeStores } from "./sync-merge";
 
 const USERS_COL = "users";
 
@@ -66,8 +67,8 @@ export async function syncLocalStoreToCloud(userId: string, email: string | null
 
   await batch.commit();
 
-  // 동기화 완료 후 로컬 스토리지를 초기화하여 충돌 방지
-  localStorage.removeItem("hanguksa:v1");
+  // 로컬 스토리지는 그대로 둔다 — 다운로드가 병합(mergeStores)이므로 삭제할 필요가 없고,
+  // 삭제하면 업로드 직후 앱이 재로드될 때 학습기록이 사라질 수 있다.
   window.dispatchEvent(new CustomEvent("hanguksa:store"));
 }
 
@@ -105,36 +106,27 @@ export async function downloadCloudToLocalStore(userId: string) {
   if (!userSnap.exists()) return; // 클라우드에 데이터가 없으면 진행 안함
 
   const userData = userSnap.data();
-  const local = loadStore();
 
-  // 사용자 기본 메타데이터 동기화
-  local.streak = userData.streak || local.streak;
-  local.settings = userData.settings || local.settings;
-  local.badges = userData.badges || local.badges;
-  local.attendance = userData.attendance || local.attendance;
-  local.bookmarks = userData.bookmarks || local.bookmarks;
+  // 서브컬렉션 병렬 로드
+  const [attemptsSnap, examSnap, srsSnap] = await Promise.all([
+    getDocs(collection(userRef, "attempts")),
+    getDocs(collection(userRef, "examHistory")),
+    getDocs(collection(userRef, "srs")),
+  ]);
 
-  // Attempts 다운로드
-  const attemptsSnap = await getDocs(collection(userRef, "attempts"));
-  const attempts = attemptsSnap.docs.map((d) => d.data() as any);
-  
-  // ExamHistory 다운로드
-  const examSnap = await getDocs(collection(userRef, "examHistory"));
-  const examHistory = examSnap.docs.map((d) => d.data() as any);
-  
-  // SRS 다운로드
-  const srsSnap = await getDocs(collection(userRef, "srs"));
-  const srs: Record<string, any> = {};
-  srsSnap.docs.forEach((d) => {
-    srs[d.id] = d.data();
-  });
+  const cloud: Partial<Store> = {
+    streak: userData.streak,
+    settings: userData.settings,
+    badges: userData.badges,
+    attendance: userData.attendance,
+    bookmarks: userData.bookmarks,
+    attempts: attemptsSnap.docs.map((d) => d.data() as any),
+    examHistory: examSnap.docs.map((d) => d.data() as any),
+    srs: Object.fromEntries(srsSnap.docs.map((d) => [d.id, d.data()])) as any,
+  };
 
-  // 로컬 객체에 덮어쓰기 (클라우드 우선)
-  local.attempts = attempts;
-  local.examHistory = examHistory;
-  local.srs = srs;
-
-  // 로컬 스토리지 저장 및 전역 이벤트 발생 (Zustand 등 업데이트 유도)
-  saveStore(local);
+  // 덮어쓰기 대신 로컬과 클라우드를 손실 없이 병합(합집합) 후 저장.
+  const merged = mergeStores(loadStore(), cloud);
+  saveStore(merged);
   window.dispatchEvent(new CustomEvent("hanguksa:store"));
 }
