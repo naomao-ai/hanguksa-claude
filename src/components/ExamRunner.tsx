@@ -252,6 +252,7 @@ function ExamResultView({
   onExit: () => void;
   setScrapTarget: (t: {id: string, title: string} | null) => void;
 }) {
+  const { toast } = useUI();
   const [review, setReview] = useState(false);
   const [similarCounts, setSimilarCounts] = useState<Record<string, number>>({});
 
@@ -301,9 +302,9 @@ function ExamResultView({
           return;
         }
       }
-      alert("비슷한 유형의 문제를 찾지 못했습니다.");
+      toast("비슷한 유형의 문제를 찾지 못했습니다.", "info");
     } catch (e) {
-      alert("오류가 발생했습니다.");
+      toast("오류가 발생했습니다.", "error");
     }
   };
 

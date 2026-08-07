@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "@/lib/useStore";
+import { useUI } from "@/components/ui/UIProvider";
 import { recordAttempt, toggleBookmark, type AttemptSource } from "@/lib/local-store";
 import { eraLabel, qTypeLabel, levelLabel } from "@/lib/domain";
 import { cn, pct } from "@/lib/utils";
@@ -24,6 +25,7 @@ export default function StudyRunner({
   extraDoneActions?: React.ReactNode;
 }) {
   const { update, store } = useStore();
+  const { toast } = useUI();
   const [idx, setIdx] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -119,9 +121,9 @@ export default function StudyRunner({
           return;
         }
       }
-      alert("비슷한 유형의 문제를 찾지 못했습니다.");
+      toast("비슷한 유형의 문제를 찾지 못했습니다.", "info");
     } catch (e) {
-      alert("오류가 발생했습니다.");
+      toast("오류가 발생했습니다.", "error");
     } finally {
       setLoadingSimilar(false);
     }

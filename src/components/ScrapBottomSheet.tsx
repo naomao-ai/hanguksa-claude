@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { saveScrap } from "@/lib/firestore-user";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useUI } from "@/components/ui/UIProvider";
 import { X, Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ interface ScrapBottomSheetProps {
 
 export default function ScrapBottomSheet({ isOpen, onClose, questionId, factId, title }: ScrapBottomSheetProps) {
   const { user } = useAuth();
+  const { toast } = useUI();
   const [memo, setMemo] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export default function ScrapBottomSheet({ isOpen, onClose, questionId, factId, 
 
   const handleSave = async () => {
     if (!user) {
-      alert("로그인이 필요합니다.");
+      toast("로그인이 필요합니다.", "error");
       return;
     }
     setLoading(true);
@@ -36,11 +38,11 @@ export default function ScrapBottomSheet({ isOpen, onClose, questionId, factId, 
         memo,
         tags,
       });
-      alert("수집되었습니다!");
+      toast("수집되었습니다!", "success");
       onClose();
     } catch (e) {
       console.error(e);
-      alert("수집 중 오류가 발생했습니다.");
+      toast("수집 중 오류가 발생했습니다.", "error");
     } finally {
       setLoading(false);
     }

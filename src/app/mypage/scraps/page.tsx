@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useUI } from "@/components/ui/UIProvider";
 import { getScraps, deleteScrap, type ScrapData } from "@/lib/firestore-user";
 import { Loader2, Trash2, Bookmark } from "lucide-react";
 import Link from "next/link";
@@ -10,6 +11,7 @@ import type { QuestionDTO } from "@/lib/types";
 
 export default function MyScrapsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { toast, confirm } = useUI();
   const [scraps, setScraps] = useState<ScrapData[]>([]);
   const [questions, setQuestions] = useState<Record<string, QuestionDTO>>({});
   const [loading, setLoading] = useState(true);
@@ -46,12 +48,15 @@ export default function MyScrapsPage() {
   }, [user, authLoading]);
 
   const handleDelete = async (scrapId: string) => {
-    if (!user || !confirm("정말 삭제하시겠습니까?")) return;
+    if (!user) return;
+    const ok = await confirm({ title: "수집 삭제", body: "이 항목을 삭제할까요?", confirmText: "삭제", danger: true });
+    if (!ok) return;
     try {
       await deleteScrap(user.uid, scrapId);
       setScraps(prev => prev.filter(s => s.id !== scrapId));
+      toast("삭제되었습니다.", "success");
     } catch (e) {
-      alert("삭제 실패");
+      toast("삭제 실패", "error");
     }
   };
 
